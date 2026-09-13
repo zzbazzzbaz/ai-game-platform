@@ -1,12 +1,12 @@
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Query, Request
+from sqlalchemy.orm import Session
 
 from app.infra.db.session import get_session
 from app.infra.gateway.minio import MinioGateway
 from app.infra.gateway.modal import ModalGateway
 from app.services.auth_service import verify_token
-from sqlalchemy.orm import Session
 
 
 def get_modal(request: Request) -> ModalGateway:
