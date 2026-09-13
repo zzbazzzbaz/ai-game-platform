@@ -1,0 +1,8 @@
+# 排除聊天记录
+docs/chat/
+# 排除本地环境变量
+services/.env.local
+# 本地配置（含密钥，不提交）
+opencode.json
+# macOS
+.DS_Store
