@@ -4,7 +4,7 @@ import secrets
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
-from app.deps import _bearer
+from app.routers.deps import _bearer
 from app.services.auth_service import USER_ID_RE, sign_token, verify_token
 from app.settings import get_settings
 

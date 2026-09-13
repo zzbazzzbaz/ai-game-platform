@@ -7,7 +7,7 @@ from app.infra.db.engine import get_engine
 from app.infra.db.repositories import ensure_table
 from app.infra.gateway.minio import MinioGateway
 from app.infra.gateway.modal import ModalGateway
-from app.routers import auth, games, sessions
+from app.routers.v1 import router as v1_router
 from app.settings import get_settings
 
 
@@ -43,9 +43,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(auth.router)
-app.include_router(sessions.router)
-app.include_router(games.router)
+app.include_router(v1_router)
 
 
 @app.get("/health")

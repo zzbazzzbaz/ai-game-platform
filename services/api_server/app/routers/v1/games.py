@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
-from app.deps import FlexibleUserDep, MinioDep, ModalDep, SessionDep, UserDep
+from app.routers.deps import FlexibleUserDep, MinioDep, ModalDep, SessionDep, UserDep
 from app.services import publish_service
 from app.services.publish_service import MAX_INPUT_BYTES, NotFoundError
 
