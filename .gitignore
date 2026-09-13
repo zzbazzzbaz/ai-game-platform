@@ -6,3 +6,8 @@ services/.env.local
 opencode.json
 # macOS
 .DS_Store
+# Python
+.venv/
+__pycache__/
+# 本地冒烟测试工程（不提交）
+test/
