@@ -7,9 +7,11 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.infra.db.repositories import claim_owner, get_owner
+from app.infra.db.engine import get_engine
+from app.infra.db.models import Base, ThreadOwner
 from app.infra.gateway.minio import (
     MinioGateway,
     input_prefix,
@@ -32,6 +34,30 @@ READ_CHUNK = 1024 * 256
 def check_thread_id(thread_id: str) -> None:
     if not THREAD_ID_RE.match(thread_id):
         raise ValueError("thread_id 非法：须为 UUID")
+
+
+def ensure_table() -> None:
+    Base.metadata.create_all(get_engine())
+
+
+def get_owner(session: Session, thread_id: str) -> str | None:
+    row = session.get(ThreadOwner, thread_id)
+    return row.owner if row else None
+
+
+def claim_owner(session: Session, thread_id: str, owner: str) -> None:
+    now = int(time.time())
+    session.execute(
+        insert(ThreadOwner)
+        .values(thread_id=thread_id, owner=owner, created_at=now, updated_at=now)
+        .on_conflict_do_nothing(index_elements=["thread_id"])
+    )
+    session.commit()
+    current = get_owner(session, thread_id)
+    if current != owner:
+        if current is None:
+            raise ValueError(f"会话 {thread_id} 不存在")
+        raise PermissionError("无权操作他人会话")
 
 
 def check_owner(session: Session, thread_id: str, owner: str, *, must_exist: bool) -> None:
