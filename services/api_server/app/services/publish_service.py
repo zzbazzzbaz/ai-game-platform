@@ -8,7 +8,14 @@ from collections.abc import AsyncIterator
 from html.parser import HTMLParser
 
 from app.infra.db.session import Session
-from app.infra.gateway.minio import MinioGateway, input_key, utc_timestamp, version_key, work_key
+from app.infra.gateway.minio import (
+    VERSION_RE,
+    MinioGateway,
+    input_key,
+    utc_timestamp,
+    version_key,
+    work_key,
+)
 from app.infra.gateway.modal import ModalGateway, SandboxMissingError
 from app.services.session_service import check_owner, check_thread_id, snapshot_session
 
@@ -25,7 +32,6 @@ RESOURCE_ATTRS = {
 INPUT_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".txt", ".md", ".json", ".csv"}
 MAX_INPUT_BYTES = 5 * 1024 * 1024
 FILENAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127}$")
-VERSION_RE = re.compile(r"^\d{14}(?:_\d+)?$")
 ESM_RE = re.compile(r"^\s*(import|export)\b", re.MULTILINE)
 VERSION_ATTEMPTS = 100
 STREAM_CHUNK = 1024 * 64
