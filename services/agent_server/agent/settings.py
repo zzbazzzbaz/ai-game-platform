@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     api_internal_url: str
     auth_internal_token: str
 
+    @property
+    def internal_verify_url(self) -> str:
+        return f"{self.api_internal_url}/internal/verify"
+
 
 @lru_cache
 def get_settings() -> Settings:
