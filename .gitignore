@@ -1,13 +1,7 @@
-# 排除聊天记录
 docs/chat/
-# 排除本地环境变量
+docs/test/
 services/.env.local
-# 本地配置（含密钥，不提交）
 opencode.json
 # macOS
 .DS_Store
-# Python
-.venv/
 __pycache__/
-# 本地冒烟测试工程（不提交）
-test/
