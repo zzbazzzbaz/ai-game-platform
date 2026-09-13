@@ -7,8 +7,9 @@ import re
 import tempfile
 import time
 
+from sqlalchemy.orm import Session
+
 from app.infra.db.models import claim_owner, get_owner
-from app.infra.db.session import Session
 from app.infra.gateway.minio import (
     MinioGateway,
     input_prefix,
@@ -77,6 +78,12 @@ def sha256_file(path: str) -> str:
     return digest.hexdigest()
 
 
+def _inspect_local(local_path: str) -> tuple[bool, int]:
+    if not os.path.isfile(local_path) or os.path.islink(local_path):
+        return False, 0
+    return True, os.path.getsize(local_path)
+
+
 async def _snapshot_to_minio(
     *, thread_id: str, modal: ModalGateway, minio: MinioGateway
 ) -> tuple[str, list[dict], list[dict]]:
@@ -88,7 +95,11 @@ async def _snapshot_to_minio(
     with tempfile.TemporaryDirectory(prefix="snapshot-") as tmpdir:
         local_paths = await modal.download_to_local(thread_id, remote, tmpdir)
         for remote_path, local_path in zip(remote, local_paths, strict=True):
-            if local_path is None or not os.path.isfile(local_path) or os.path.islink(local_path):
+            if local_path is None:
+                skipped.append({"path": remote_path, "reason": "下载失败或非普通文件"})
+                continue
+            ok, size = await asyncio.to_thread(_inspect_local, local_path)
+            if not ok:
                 skipped.append({"path": remote_path, "reason": "下载失败或非普通文件"})
                 continue
             rel = sanitize_rel(remote_path[len(WORK_ROOT) + 1 :])
@@ -98,7 +109,7 @@ async def _snapshot_to_minio(
             entries.append(
                 {
                     "path": rel,
-                    "size": os.path.getsize(local_path),
+                    "size": size,
                     "sha256": await asyncio.to_thread(sha256_file, local_path),
                 }
             )

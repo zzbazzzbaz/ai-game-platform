@@ -5,8 +5,9 @@ import json
 import re
 import secrets
 import time
+from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from app.settings import get_settings
@@ -72,6 +73,10 @@ async def require_user_flexible(request: Request, token: str = Query(default="")
     if user_id is None:
         raise HTTPException(status_code=401, detail="登录已失效，请重新登录")
     return user_id
+
+
+UserDep = Annotated[str, Depends(require_user)]
+FlexibleUserDep = Annotated[str, Depends(require_user_flexible)]
 
 
 class LoginBody(BaseModel):

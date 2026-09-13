@@ -7,7 +7,8 @@ import tempfile
 from collections.abc import AsyncIterator
 from html.parser import HTMLParser
 
-from app.infra.db.session import Session
+from sqlalchemy.orm import Session
+
 from app.infra.gateway.minio import (
     VERSION_RE,
     MinioGateway,
@@ -35,6 +36,13 @@ FILENAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127}$")
 ESM_RE = re.compile(r"^\s*(import|export)\b", re.MULTILINE)
 VERSION_ATTEMPTS = 100
 STREAM_CHUNK = 1024 * 64
+NODE_CONCURRENCY = 4
+
+_NODE_SEMAPHORE = asyncio.Semaphore(NODE_CONCURRENCY)
+
+
+class NotFoundError(ValueError):
+    pass
 
 
 class _RefCollector(HTMLParser):
@@ -184,8 +192,9 @@ async def publish_version(
         html = await asyncio.to_thread(minio.get_bytes, work_key(thread_id, "index.html"))
         if html is None:
             raise ValueError("工作区还没有 /workspace/work/index.html，生成完成后再发布")
-        scripts = validate_index_html(html)
-        await asyncio.to_thread(check_scripts_with_node, scripts)
+        scripts = await asyncio.to_thread(validate_index_html, html)
+        async with _NODE_SEMAPHORE:
+            await asyncio.to_thread(check_scripts_with_node, scripts)
         version = await _claim_version(minio, thread_id, html)
     return {"thread_id": thread_id, "version": version, "size": len(html)}
 
@@ -208,7 +217,7 @@ async def resolve_version(
     if version == "latest":
         items = await asyncio.to_thread(minio.list_versions, thread_id)
         if not items:
-            raise ValueError("该会话还没有已发布版本")
+            raise NotFoundError("该会话还没有已发布版本")
         return items[-1]["version"]
     return version
 
@@ -221,7 +230,7 @@ async def get_version_bytes(
     )
     html = await asyncio.to_thread(minio.get_bytes, version_key(thread_id, resolved))
     if html is None:
-        raise ValueError(f"版本 {resolved} 不存在")
+        raise NotFoundError(f"版本 {resolved} 不存在")
     return html
 
 
@@ -242,7 +251,7 @@ async def open_version_stream(
 ) -> AsyncIterator[bytes]:
     body = await asyncio.to_thread(minio.open_stream, version_key(thread_id, version))
     if body is None:
-        raise ValueError(f"版本 {version} 不存在")
+        raise NotFoundError(f"版本 {version} 不存在")
     return _stream_body(body)
 
 

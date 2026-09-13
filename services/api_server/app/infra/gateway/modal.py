@@ -26,21 +26,33 @@ class ModalGateway:
         self._timeout = timeout
         self._locks: dict[str, asyncio.Lock] = {}
         self._locks_guard = asyncio.Lock()
+        self._lock_users: dict[str, int] = {}
         self._app_id: str | None = None
         self._app_lock = threading.Lock()
 
     async def _lock_for(self, thread_id: str) -> asyncio.Lock:
         async with self._locks_guard:
-            return self._locks.setdefault(thread_id, asyncio.Lock())
+            lock = self._locks.setdefault(thread_id, asyncio.Lock())
+            self._lock_users[thread_id] = self._lock_users.get(thread_id, 0) + 1
+            return lock
 
     @asynccontextmanager
     async def locked(self, thread_id: str) -> AsyncIterator[None]:
-        async with await self._lock_for(thread_id):
-            yield
+        lock = await self._lock_for(thread_id)
+        try:
+            async with lock:
+                yield
+        finally:
+            await self._drop_lock(thread_id)
 
     async def _drop_lock(self, thread_id: str) -> None:
         async with self._locks_guard:
-            self._locks.pop(thread_id, None)
+            remaining = self._lock_users.get(thread_id, 1) - 1
+            if remaining <= 0:
+                self._lock_users.pop(thread_id, None)
+                self._locks.pop(thread_id, None)
+            else:
+                self._lock_users[thread_id] = remaining
 
     def _app_id_sync(self) -> str:
         with self._app_lock:
@@ -176,16 +188,13 @@ class ModalGateway:
             for path, content in files.items():
                 sandbox.filesystem.write_bytes(bytes(content), path)
 
-        lock = await self._lock_for(thread_id)
-        async with lock:
+        async with self.locked(thread_id):
             await asyncio.to_thread(_run)
 
     async def terminate(self, thread_id: str) -> bool:
-        lock = await self._lock_for(thread_id)
-        async with lock:
+        async with self.locked(thread_id):
             found = await asyncio.to_thread(self._find, thread_id)
             if found is None:
                 return False
             await asyncio.to_thread(found.terminate)
-            await self._drop_lock(thread_id)
             return True

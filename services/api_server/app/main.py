@@ -1,8 +1,10 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.infra.db.engine import get_engine
 from app.infra.db.models import ensure_table
 from app.infra.gateway.minio import MinioGateway
 from app.infra.gateway.modal import ModalGateway
@@ -13,6 +15,8 @@ from app.settings import get_settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    if "*" in settings.cors_origins_list:
+        raise RuntimeError("CORS_ORIGINS 不允许用 *（已开启 allow_credentials）")
     await ensure_table()
     minio = MinioGateway(
         endpoint_url=settings.s3_endpoint_url,
@@ -21,7 +25,7 @@ async def lifespan(app: FastAPI):
         access_key=settings.s3_access_key,
         secret_key=settings.s3_secret_key,
     )
-    minio.ensure_bucket()
+    await asyncio.to_thread(minio.ensure_bucket)
     app.state.minio = minio
     app.state.modal = ModalGateway(
         app_name=settings.modal_app,
@@ -29,9 +33,10 @@ async def lifespan(app: FastAPI):
         timeout=settings.modal_timeout_seconds,
     )
     yield
+    await asyncio.to_thread(get_engine().dispose)
 
 
-app = FastAPI(title="ai-game-api")
+app = FastAPI(title="ai-game-api", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins_list,
@@ -39,7 +44,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.router.lifespan_context = lifespan
 app.include_router(auth.router)
 app.include_router(sessions.router)
 app.include_router(games.router)

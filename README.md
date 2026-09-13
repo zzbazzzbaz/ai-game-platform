@@ -9,7 +9,7 @@ docker compose -f services/docker-compose-local.yml up -d
 
 cd services/agent_server && uv run --frozen langgraph dev --no-reload
 
-cd services/api_server && set -a && . ../.env && POSTGRES_HOST=localhost REDIS_HOST=localhost uv run --frozen uvicorn app.main:app --port 8000
+cd services/api_server && set -a && . ../.env && POSTGRES_HOST=localhost REDIS_HOST=localhost uv run --frozen uvicorn app.main:app --port 8000 --workers 1
 
 cd docs/test-frontend && npm install && npm run dev
 ```

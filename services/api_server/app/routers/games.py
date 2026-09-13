@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
+from app.deps import MinioDep, ModalDep
 from app.infra.db.session import SessionDep
-from app.routers.auth import require_user, require_user_flexible
+from app.routers.auth import FlexibleUserDep, UserDep
 from app.services import publish_service
-from app.services.publish_service import MAX_INPUT_BYTES
+from app.services.publish_service import MAX_INPUT_BYTES, NotFoundError
 
 router = APIRouter()
 HTML_MEDIA_TYPE = "text/html; charset=utf-8"
@@ -13,39 +14,35 @@ UPLOAD_CHUNK = 1024 * 256
 
 @router.post("/sessions/{thread_id}/publish")
 async def publish(
-    thread_id: str,
-    request: Request,
-    session: SessionDep,
-    owner: str = Depends(require_user),
+    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
 ) -> dict:
     try:
         return await publish_service.publish_version(
             thread_id=thread_id,
             owner=owner,
             session=session,
-            modal=request.app.state.modal,
-            minio=request.app.state.minio,
+            modal=modal,
+            minio=minio,
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
-    except (ValueError, RuntimeError) as e:
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/sessions/{thread_id}/versions")
-async def versions(
-    thread_id: str,
-    request: Request,
-    session: SessionDep,
-    owner: str = Depends(require_user),
-) -> dict:
+async def versions(thread_id: str, session: SessionDep, minio: MinioDep, owner: UserDep) -> dict:
     try:
         items = await publish_service.list_versions(
-            thread_id=thread_id, owner=owner, session=session, minio=request.app.state.minio
+            thread_id=thread_id, owner=owner, session=session, minio=minio
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
-    except (ValueError, RuntimeError) as e:
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return {"versions": items}
 
@@ -54,9 +51,9 @@ async def versions(
 async def upload_input(
     thread_id: str,
     file: UploadFile,
-    request: Request,
     session: SessionDep,
-    owner: str = Depends(require_user),
+    minio: MinioDep,
+    owner: UserDep,
 ) -> dict:
     filename = (file.filename or "").split("/")[-1].split("\\")[-1]
     try:
@@ -68,11 +65,13 @@ async def upload_input(
             data=data,
             content_type=file.content_type or "application/octet-stream",
             session=session,
-            minio=request.app.state.minio,
+            minio=minio,
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
-    except (ValueError, RuntimeError) as e:
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
@@ -94,9 +93,9 @@ async def _read_capped(file: UploadFile) -> bytes:
 async def play(
     thread_id: str,
     version: str,
-    request: Request,
     session: SessionDep,
-    owner: str = Depends(require_user_flexible),
+    minio: MinioDep,
+    owner: FlexibleUserDep,
 ) -> Response:
     try:
         resolved = await publish_service.resolve_version(
@@ -104,17 +103,19 @@ async def play(
             owner=owner,
             version=version,
             session=session,
-            minio=request.app.state.minio,
+            minio=minio,
         )
         stream = await publish_service.open_version_stream(
-            minio=request.app.state.minio, thread_id=thread_id, version=resolved
+            minio=minio, thread_id=thread_id, version=resolved
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     except ValueError as e:
-        raise HTTPException(
-            status_code=404 if "不存在" in str(e) or "还没有" in str(e) else 400, detail=str(e)
-        ) from e
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return StreamingResponse(stream, media_type=HTML_MEDIA_TYPE)
 
 
@@ -122,9 +123,9 @@ async def play(
 async def download(
     thread_id: str,
     version: str,
-    request: Request,
     session: SessionDep,
-    owner: str = Depends(require_user_flexible),
+    minio: MinioDep,
+    owner: FlexibleUserDep,
 ) -> Response:
     try:
         html = await publish_service.get_version_bytes(
@@ -132,14 +133,16 @@ async def download(
             owner=owner,
             version=version,
             session=session,
-            minio=request.app.state.minio,
+            minio=minio,
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     except ValueError as e:
-        raise HTTPException(
-            status_code=404 if "不存在" in str(e) or "还没有" in str(e) else 400, detail=str(e)
-        ) from e
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return Response(
         content=html,
         media_type=HTML_MEDIA_TYPE,
