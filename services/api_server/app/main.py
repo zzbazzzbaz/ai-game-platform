@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ai-game-api")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in get_settings().cors_origins.split(",") if o.strip()],
+    allow_origins=get_settings().cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
