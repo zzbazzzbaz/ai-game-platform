@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.infra.db.models import ensure_table
 from app.infra.db.session import get_session
@@ -32,6 +33,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ai-game-api")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in get_settings().CORS_ORIGINS.split(",") if o.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.router.lifespan_context = lifespan
 app.include_router(auth.router)
 app.include_router(sessions.router)

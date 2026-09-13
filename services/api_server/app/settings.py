@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     AUTH_SECRET: str
     AUTH_INTERNAL_TOKEN: str
     AUTH_TOKEN_TTL_SECONDS: int
+    CORS_ORIGINS: str
 
     @property
     def database_url(self) -> str:

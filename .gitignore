@@ -1,6 +1,8 @@
 docs/chat/
 docs/test/
 docs/agent-chat-ui/
+docs/test-frontend/node_modules/
+docs/test-frontend/.next/
 services/.env.local
 services/agent_server/.langgraph_api/
 opencode.json
