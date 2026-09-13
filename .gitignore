@@ -2,6 +2,7 @@ docs/chat/
 docs/test/
 docs/agent-chat-ui/
 services/.env.local
+services/agent_server/.langgraph_api/
 opencode.json
 # macOS
 .DS_Store

@@ -14,6 +14,7 @@ class GameDesignArgs(BaseModel):
 def submit_game_design(
     title: str, gameplay: str, controls: str, win_lose: str, difficulty: str
 ) -> str:
+    """提交游戏设计方案等待用户审批，通过后才允许写代码。"""
     return (
         "设计方案已获批，立即按以下方案生成 /workspace/work/index.html，不要再询问。\n"
         f"标题：{title}\n玩法：{gameplay}\n操作：{controls}\n"
