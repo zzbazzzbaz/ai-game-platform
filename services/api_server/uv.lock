@@ -415,8 +415,8 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = "==0.141.1" },
     { name = "modal", specifier = "==1.5.5" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.5" },
-    { name = "pydantic-settings", specifier = ">=2.15.0" },
-    { name = "sqlalchemy", specifier = ">=2.0.52" },
+    { name = "pydantic-settings", specifier = "==2.15.0" },
+    { name = "sqlalchemy", specifier = "==2.0.52" },
 ]
 
 [package.metadata.requires-dev]

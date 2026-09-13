@@ -478,7 +478,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "deepagents", specifier = "==0.7.13" },
-    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "langchain", specifier = "==1.4.0" },
     { name = "langchain-deepseek", specifier = "==1.1.0" },
     { name = "langchain-openai", specifier = "==1.6.2" },
