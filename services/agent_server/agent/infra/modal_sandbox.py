@@ -19,6 +19,4 @@ def attach_thread_sandbox(thread_id: str) -> modal.Sandbox:
     try:
         return modal.Sandbox.from_name(get_settings().MODAL_APP, sandbox_name(thread_id))
     except NotFoundError:
-        raise RuntimeError(
-            f"thread {thread_id} 的 sandbox 不存在，请先调 api /sessions/ensure 创建会话"
-        ) from None
+        raise RuntimeError("会话环境已过期，请重新创建会话后再继续") from None

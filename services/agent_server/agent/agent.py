@@ -14,7 +14,7 @@ from agent.tools.design import submit_game_design
 async def graph(config: RunnableConfig):
     thread_id = (config.get("configurable") or {}).get("thread_id")
     if not thread_id or not isinstance(thread_id, str):
-        raise RuntimeError("缺少 thread_id：请先调 api /sessions/ensure 创建会话再连接 agent")
+        raise RuntimeError("会话尚未创建，请先创建新会话再开始对话")
     model = get_main_model()
     sandbox = await asyncio.to_thread(attach_thread_sandbox, thread_id)
     await asyncio.to_thread(sync_skill, sandbox)
