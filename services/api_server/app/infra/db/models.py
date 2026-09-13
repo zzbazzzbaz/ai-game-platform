@@ -1,32 +1,48 @@
+import asyncio
 import time
 
-from app.infra.db.session import Session
+from sqlalchemy import BigInteger, Text
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-DDL = """CREATE TABLE IF NOT EXISTS thread_owners (
-thread_id TEXT PRIMARY KEY,
-owner TEXT NOT NULL,
-created_at BIGINT NOT NULL,
-updated_at BIGINT NOT NULL
-)"""
+from app.infra.db.engine import get_engine
 
 
-async def ensure_table(session: Session) -> None:
-    await session.arun(DDL)
+class Base(DeclarativeBase):
+    pass
+
+
+class ThreadOwner(Base):
+    __tablename__ = "thread_owners"
+
+    thread_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    owner: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+async def ensure_table() -> None:
+    await asyncio.to_thread(Base.metadata.create_all, get_engine())
 
 
 async def get_owner(session: Session, thread_id: str) -> str | None:
-    rows = await session.arun("SELECT owner FROM thread_owners WHERE thread_id=%s", (thread_id,))
-    return rows[0][0] if rows else None
+    row = await asyncio.to_thread(session.get, ThreadOwner, thread_id)
+    return row.owner if row else None
 
 
 async def claim_owner(session: Session, thread_id: str, owner: str) -> None:
-    now = int(time.time())
-    await session.arun(
-        "INSERT INTO thread_owners(thread_id, owner, created_at, updated_at)"
-        " VALUES(%s, %s, %s, %s) ON CONFLICT(thread_id) DO NOTHING",
-        (thread_id, owner, now, now),
-    )
-    current = await get_owner(session, thread_id)
+    def _claim() -> str | None:
+        now = int(time.time())
+        session.execute(
+            insert(ThreadOwner)
+            .values(thread_id=thread_id, owner=owner, created_at=now, updated_at=now)
+            .on_conflict_do_nothing(index_elements=["thread_id"])
+        )
+        session.commit()
+        row = session.get(ThreadOwner, thread_id)
+        return row.owner if row else None
+
+    current = await asyncio.to_thread(_claim)
     if current != owner:
         if current is None:
             raise ValueError(f"会话 {thread_id} 不存在")

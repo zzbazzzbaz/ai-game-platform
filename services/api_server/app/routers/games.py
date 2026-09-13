@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
-from app.infra.db.session import get_session
+from app.infra.db.session import SessionDep
 from app.routers.auth import require_user, require_user_flexible
 from app.services import publish_service
 from app.services.publish_service import MAX_INPUT_BYTES
@@ -12,12 +12,17 @@ UPLOAD_CHUNK = 1024 * 256
 
 
 @router.post("/sessions/{thread_id}/publish")
-async def publish(thread_id: str, request: Request, owner: str = Depends(require_user)) -> dict:
+async def publish(
+    thread_id: str,
+    request: Request,
+    session: SessionDep,
+    owner: str = Depends(require_user),
+) -> dict:
     try:
         return await publish_service.publish_version(
             thread_id=thread_id,
             owner=owner,
-            session=get_session(),
+            session=session,
             modal=request.app.state.modal,
             minio=request.app.state.minio,
         )
@@ -28,10 +33,15 @@ async def publish(thread_id: str, request: Request, owner: str = Depends(require
 
 
 @router.get("/sessions/{thread_id}/versions")
-async def versions(thread_id: str, request: Request, owner: str = Depends(require_user)) -> dict:
+async def versions(
+    thread_id: str,
+    request: Request,
+    session: SessionDep,
+    owner: str = Depends(require_user),
+) -> dict:
     try:
         items = await publish_service.list_versions(
-            thread_id=thread_id, owner=owner, session=get_session(), minio=request.app.state.minio
+            thread_id=thread_id, owner=owner, session=session, minio=request.app.state.minio
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
@@ -42,7 +52,11 @@ async def versions(thread_id: str, request: Request, owner: str = Depends(requir
 
 @router.post("/sessions/{thread_id}/input")
 async def upload_input(
-    thread_id: str, file: UploadFile, request: Request, owner: str = Depends(require_user)
+    thread_id: str,
+    file: UploadFile,
+    request: Request,
+    session: SessionDep,
+    owner: str = Depends(require_user),
 ) -> dict:
     filename = (file.filename or "").split("/")[-1].split("\\")[-1]
     try:
@@ -53,7 +67,7 @@ async def upload_input(
             filename=filename,
             data=data,
             content_type=file.content_type or "application/octet-stream",
-            session=get_session(),
+            session=session,
             minio=request.app.state.minio,
         )
     except PermissionError as e:
@@ -78,14 +92,18 @@ async def _read_capped(file: UploadFile) -> bytes:
 
 @router.get("/games/{thread_id}/{version}/index.html")
 async def play(
-    thread_id: str, version: str, request: Request, owner: str = Depends(require_user_flexible)
+    thread_id: str,
+    version: str,
+    request: Request,
+    session: SessionDep,
+    owner: str = Depends(require_user_flexible),
 ) -> Response:
     try:
         resolved = await publish_service.resolve_version(
             thread_id=thread_id,
             owner=owner,
             version=version,
-            session=get_session(),
+            session=session,
             minio=request.app.state.minio,
         )
         stream = await publish_service.open_version_stream(
@@ -102,14 +120,18 @@ async def play(
 
 @router.get("/games/{thread_id}/{version}/download")
 async def download(
-    thread_id: str, version: str, request: Request, owner: str = Depends(require_user_flexible)
+    thread_id: str,
+    version: str,
+    request: Request,
+    session: SessionDep,
+    owner: str = Depends(require_user_flexible),
 ) -> Response:
     try:
         html = await publish_service.get_version_bytes(
             thread_id=thread_id,
             owner=owner,
             version=version,
-            session=get_session(),
+            session=session,
             minio=request.app.state.minio,
         )
     except PermissionError as e:

@@ -174,9 +174,7 @@ async def publish_version(
                 thread_id=thread_id, owner=owner, session=session, modal=modal, minio=minio
             )
         except SandboxMissingError:
-            raise ValueError(
-                f"thread {thread_id} 的 sandbox 不存在，请先调 /sessions/ensure"
-            ) from None
+            raise ValueError("会话环境不存在，请先创建会话再发布") from None
         html = await asyncio.to_thread(minio.get_bytes, work_key(thread_id, "index.html"))
         if html is None:
             raise ValueError("工作区还没有 /workspace/work/index.html，生成完成后再发布")

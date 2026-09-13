@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.infra.db.models import ensure_table
-from app.infra.db.session import get_session
 from app.infra.gateway.minio import MinioGateway
 from app.infra.gateway.modal import ModalGateway
 from app.routers import auth, games, sessions
@@ -14,7 +13,7 @@ from app.settings import get_settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    await ensure_table(get_session())
+    await ensure_table()
     minio = MinioGateway(
         endpoint_url=settings.S3_ENDPOINT_URL,
         bucket=settings.S3_BUCKET,

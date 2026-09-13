@@ -1,16 +1,17 @@
-from app.infra.db.engine import Engine, get_engine
+from typing import Annotated
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from app.infra.db.engine import get_session_factory
 
 
-class Session:
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
-
-    def run(self, sql: str, params: tuple = ()):
-        return self._engine.run(sql, params)
-
-    async def arun(self, sql: str, params: tuple = ()):
-        return await self._engine.arun(sql, params)
+def get_session():
+    session = get_session_factory()()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
-def get_session() -> Session:
-    return Session(get_engine())
+SessionDep = Annotated[Session, Depends(get_session)]
