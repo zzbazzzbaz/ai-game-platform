@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.infra.db.engine import get_engine
-from app.infra.db.models import ensure_table
+from app.infra.db.repositories import ensure_table
 from app.infra.gateway.minio import MinioGateway
 from app.infra.gateway.modal import ModalGateway
 from app.routers import auth, games, sessions

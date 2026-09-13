@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
 
-from app.infra.db.models import claim_owner, get_owner
+from app.infra.db.repositories import claim_owner, get_owner
 from app.infra.gateway.minio import (
     MinioGateway,
     input_prefix,
