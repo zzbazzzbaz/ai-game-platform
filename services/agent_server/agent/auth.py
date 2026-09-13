@@ -14,10 +14,10 @@ async def authenticate(authorization: str | None) -> Auth.types.MinimalUserDict:
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
-                f"{settings.API_INTERNAL_URL}/internal/verify",
+                f"{settings.api_internal_url}/internal/verify",
                 headers={
                     "Authorization": authorization,
-                    "X-Internal-Token": settings.AUTH_INTERNAL_TOKEN,
+                    "X-Internal-Token": settings.auth_internal_token,
                 },
             )
     except httpx.HTTPError as e:

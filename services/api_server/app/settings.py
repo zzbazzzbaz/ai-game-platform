@@ -6,31 +6,31 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
-    POSTGRES_HOST: str
-    POSTGRES_PORT: int
-    S3_ENDPOINT_URL: str
-    S3_BUCKET: str
-    S3_PATH_STYLE: bool
-    S3_ACCESS_KEY: str
-    S3_SECRET_KEY: str
-    MODAL_TOKEN_ID: str
-    MODAL_TOKEN_SECRET: str
-    MODAL_APP: str
-    MODAL_IDLE_TIMEOUT_SECONDS: int
-    MODAL_TIMEOUT_SECONDS: int
-    AUTH_SECRET: str
-    AUTH_INTERNAL_TOKEN: str
-    AUTH_TOKEN_TTL_SECONDS: int
-    CORS_ORIGINS: str
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str
+    postgres_host: str
+    postgres_port: int
+    s3_endpoint_url: str
+    s3_bucket: str
+    s3_path_style: bool
+    s3_access_key: str
+    s3_secret_key: str
+    modal_token_id: str
+    modal_token_secret: str
+    modal_app: str
+    modal_idle_timeout_seconds: int
+    modal_timeout_seconds: int
+    auth_secret: str
+    auth_internal_token: str
+    auth_token_ttl_seconds: int
+    cors_origins: str
 
     @property
     def database_url(self) -> str:
         return (
-            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            f"postgresql://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 
 

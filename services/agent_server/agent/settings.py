@@ -7,18 +7,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
-    LLM_PROVIDER: Literal["deepseek", "openai"]
-    LLM_MODEL_ID: str
-    LLM_BASE_URL: str
-    LLM_API_KEY: str
-    MODAL_TOKEN_ID: str
-    MODAL_TOKEN_SECRET: str
-    MODAL_APP: str
-    LANGSMITH_API_KEY: str
-    LANGSMITH_TRACING: bool
-    LANGSMITH_PROJECT: str
-    API_INTERNAL_URL: str
-    AUTH_INTERNAL_TOKEN: str
+    llm_provider: Literal["deepseek", "openai"]
+    llm_model_id: str
+    llm_base_url: str
+    llm_api_key: str
+    modal_token_id: str
+    modal_token_secret: str
+    modal_app: str
+    langsmith_api_key: str
+    langsmith_tracing: bool
+    langsmith_project: str
+    api_internal_url: str
+    auth_internal_token: str
 
 
 @lru_cache

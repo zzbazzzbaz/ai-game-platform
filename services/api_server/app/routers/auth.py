@@ -25,17 +25,17 @@ def _unb64(text: str) -> bytes:
 
 def sign_token(user_id: str) -> tuple[str, int]:
     settings = get_settings()
-    exp = int(time.time()) + settings.AUTH_TOKEN_TTL_SECONDS
+    exp = int(time.time()) + settings.auth_token_ttl_seconds
     payload = _b64(json.dumps({"sub": user_id, "exp": exp, "nonce": secrets.token_hex(8)}).encode())
-    sig = _b64(hmac.new(settings.AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).digest())
-    return f"{payload}.{sig}", settings.AUTH_TOKEN_TTL_SECONDS
+    sig = _b64(hmac.new(settings.auth_secret.encode(), payload.encode(), hashlib.sha256).digest())
+    return f"{payload}.{sig}", settings.auth_token_ttl_seconds
 
 
 def verify_token(token: str) -> str | None:
     try:
         payload, _, sig = token.partition(".")
         expect = _b64(
-            hmac.new(get_settings().AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).digest()
+            hmac.new(get_settings().auth_secret.encode(), payload.encode(), hashlib.sha256).digest()
         )
         if not hmac.compare_digest(sig, expect):
             return None
@@ -89,7 +89,7 @@ async def login(body: LoginBody) -> dict:
 
 @router.get("/internal/verify")
 async def internal_verify(request: Request, x_internal_token: str = Header(default="")) -> dict:
-    if not hmac.compare_digest(x_internal_token, get_settings().AUTH_INTERNAL_TOKEN):
+    if not hmac.compare_digest(x_internal_token, get_settings().auth_internal_token):
         raise HTTPException(status_code=403, detail="内部鉴权失败")
     user_id = verify_token(_bearer(request) or "")
     if user_id is None:

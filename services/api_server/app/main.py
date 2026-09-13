@@ -15,18 +15,18 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     await ensure_table()
     minio = MinioGateway(
-        endpoint_url=settings.S3_ENDPOINT_URL,
-        bucket=settings.S3_BUCKET,
-        path_style=settings.S3_PATH_STYLE,
-        access_key=settings.S3_ACCESS_KEY,
-        secret_key=settings.S3_SECRET_KEY,
+        endpoint_url=settings.s3_endpoint_url,
+        bucket=settings.s3_bucket,
+        path_style=settings.s3_path_style,
+        access_key=settings.s3_access_key,
+        secret_key=settings.s3_secret_key,
     )
     minio.ensure_bucket()
     app.state.minio = minio
     app.state.modal = ModalGateway(
-        app_name=settings.MODAL_APP,
-        idle_timeout=settings.MODAL_IDLE_TIMEOUT_SECONDS,
-        timeout=settings.MODAL_TIMEOUT_SECONDS,
+        app_name=settings.modal_app,
+        idle_timeout=settings.modal_idle_timeout_seconds,
+        timeout=settings.modal_timeout_seconds,
     )
     yield
 
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ai-game-api")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in get_settings().CORS_ORIGINS.split(",") if o.strip()],
+    allow_origins=[o.strip() for o in get_settings().cors_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
