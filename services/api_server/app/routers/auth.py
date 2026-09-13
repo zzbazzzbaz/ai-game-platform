@@ -61,14 +61,14 @@ def _bearer(request: Request) -> str | None:
     return None
 
 
-async def require_user(request: Request) -> str:
+def require_user(request: Request) -> str:
     user_id = verify_token(_bearer(request) or "")
     if user_id is None:
         raise HTTPException(status_code=401, detail="登录已失效，请重新登录")
     return user_id
 
 
-async def require_user_flexible(request: Request, token: str = Query(default="")) -> str:
+def require_user_flexible(request: Request, token: str = Query(default="")) -> str:
     user_id = verify_token(_bearer(request) or token)
     if user_id is None:
         raise HTTPException(status_code=401, detail="登录已失效，请重新登录")
@@ -84,7 +84,7 @@ class LoginBody(BaseModel):
 
 
 @router.post("/auth/login")
-async def login(body: LoginBody) -> dict:
+def login(body: LoginBody) -> dict:
     user_id = body.user_id.strip() or f"guest-{secrets.token_hex(4)}"
     if not USER_ID_RE.match(user_id):
         raise HTTPException(status_code=400, detail="user_id 非法：只允许字母数字及 -_，长度 1-32")
@@ -93,7 +93,7 @@ async def login(body: LoginBody) -> dict:
 
 
 @router.get("/internal/verify")
-async def internal_verify(request: Request, x_internal_token: str = Header(default="")) -> dict:
+def internal_verify(request: Request, x_internal_token: str = Header(default="")) -> dict:
     if not hmac.compare_digest(x_internal_token, get_settings().auth_internal_token):
         raise HTTPException(status_code=403, detail="内部鉴权失败")
     user_id = verify_token(_bearer(request) or "")

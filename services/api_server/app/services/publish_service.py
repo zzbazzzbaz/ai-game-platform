@@ -1,10 +1,10 @@
-import asyncio
 import os
 import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import AsyncIterator
+import threading
+from collections.abc import Iterator
 from html.parser import HTMLParser
 
 from sqlalchemy.orm import Session
@@ -38,7 +38,7 @@ VERSION_ATTEMPTS = 100
 STREAM_CHUNK = 1024 * 64
 NODE_CONCURRENCY = 4
 
-_NODE_SEMAPHORE = asyncio.Semaphore(NODE_CONCURRENCY)
+_NODE_SEMAPHORE = threading.Semaphore(NODE_CONCURRENCY)
 
 
 class NotFoundError(ValueError):
@@ -157,12 +157,11 @@ def check_version(version: str) -> None:
         raise ValueError(f"版本非法：{version}")
 
 
-async def _claim_version(minio: MinioGateway, thread_id: str, html: bytes) -> str:
+def _claim_version(minio: MinioGateway, thread_id: str, html: bytes) -> str:
     base = utc_timestamp()
     for n in range(VERSION_ATTEMPTS):
         version = base if n == 0 else f"{base}_{n + 1}"
-        claimed = await asyncio.to_thread(
-            minio.put_bytes_if_absent,
+        claimed = minio.put_bytes_if_absent(
             version_key(thread_id, version),
             html,
             "text/html; charset=utf-8",
@@ -172,7 +171,7 @@ async def _claim_version(minio: MinioGateway, thread_id: str, html: bytes) -> st
     raise RuntimeError("版本并发冲突过多，请重试")
 
 
-async def publish_version(
+def publish_version(
     *,
     thread_id: str,
     owner: str,
@@ -181,81 +180,74 @@ async def publish_version(
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    await check_owner(session, thread_id, owner, must_exist=True)
-    async with modal.locked(thread_id):
+    check_owner(session, thread_id, owner, must_exist=True)
+    with modal.locked(thread_id):
         try:
-            await snapshot_session(
+            snapshot_session(
                 thread_id=thread_id, owner=owner, session=session, modal=modal, minio=minio
             )
         except SandboxMissingError:
             raise ValueError("会话环境不存在，请先创建会话再发布") from None
-        html = await asyncio.to_thread(minio.get_bytes, work_key(thread_id, "index.html"))
+        html = minio.get_bytes(work_key(thread_id, "index.html"))
         if html is None:
             raise ValueError("工作区还没有 /workspace/work/index.html，生成完成后再发布")
-        scripts = await asyncio.to_thread(validate_index_html, html)
-        async with _NODE_SEMAPHORE:
-            await asyncio.to_thread(check_scripts_with_node, scripts)
-        version = await _claim_version(minio, thread_id, html)
+        scripts = validate_index_html(html)
+        with _NODE_SEMAPHORE:
+            check_scripts_with_node(scripts)
+        version = _claim_version(minio, thread_id, html)
     return {"thread_id": thread_id, "version": version, "size": len(html)}
 
 
-async def list_versions(
+def list_versions(
     *, thread_id: str, owner: str, session: Session, minio: MinioGateway
 ) -> list[dict]:
     check_thread_id(thread_id)
-    await check_owner(session, thread_id, owner, must_exist=True)
-    items = await asyncio.to_thread(minio.list_versions, thread_id)
+    check_owner(session, thread_id, owner, must_exist=True)
+    items = minio.list_versions(thread_id)
     return [{"n": i + 1, **v} for i, v in enumerate(items)]
 
 
-async def resolve_version(
+def resolve_version(
     *, thread_id: str, owner: str, version: str, session: Session, minio: MinioGateway
 ) -> str:
     check_thread_id(thread_id)
     check_version(version)
-    await check_owner(session, thread_id, owner, must_exist=True)
+    check_owner(session, thread_id, owner, must_exist=True)
     if version == "latest":
-        items = await asyncio.to_thread(minio.list_versions, thread_id)
+        items = minio.list_versions(thread_id)
         if not items:
             raise NotFoundError("该会话还没有已发布版本")
         return items[-1]["version"]
     return version
 
 
-async def get_version_bytes(
+def get_version_bytes(
     *, thread_id: str, owner: str, version: str, session: Session, minio: MinioGateway
 ) -> bytes:
-    resolved = await resolve_version(
+    resolved = resolve_version(
         thread_id=thread_id, owner=owner, version=version, session=session, minio=minio
     )
-    html = await asyncio.to_thread(minio.get_bytes, version_key(thread_id, resolved))
+    html = minio.get_bytes(version_key(thread_id, resolved))
     if html is None:
         raise NotFoundError(f"版本 {resolved} 不存在")
     return html
 
 
-async def _stream_body(body) -> AsyncIterator[bytes]:
+def _stream_body(body) -> Iterator[bytes]:
     try:
-        chunks = body.iter_chunks(chunk_size=STREAM_CHUNK)
-        while True:
-            chunk = await asyncio.to_thread(next, chunks, None)
-            if chunk is None:
-                break
-            yield chunk
+        yield from body.iter_chunks(chunk_size=STREAM_CHUNK)
     finally:
-        await asyncio.to_thread(body.close)
+        body.close()
 
 
-async def open_version_stream(
-    *, minio: MinioGateway, thread_id: str, version: str
-) -> AsyncIterator[bytes]:
-    body = await asyncio.to_thread(minio.open_stream, version_key(thread_id, version))
+def open_version_stream(*, minio: MinioGateway, thread_id: str, version: str) -> Iterator[bytes]:
+    body = minio.open_stream(version_key(thread_id, version))
     if body is None:
         raise NotFoundError(f"版本 {version} 不存在")
     return _stream_body(body)
 
 
-async def store_input(
+def store_input(
     *,
     thread_id: str,
     owner: str,
@@ -266,7 +258,7 @@ async def store_input(
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    await check_owner(session, thread_id, owner, must_exist=True)
+    check_owner(session, thread_id, owner, must_exist=True)
     check_input_file(filename, len(data))
-    await asyncio.to_thread(minio.put_bytes, input_key(thread_id, filename), data, content_type)
+    minio.put_bytes(input_key(thread_id, filename), data, content_type)
     return {"filename": filename, "size": len(data)}

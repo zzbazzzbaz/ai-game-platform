@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 import os
@@ -6,6 +5,7 @@ import posixpath
 import re
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
 
@@ -34,8 +34,8 @@ def check_thread_id(thread_id: str) -> None:
         raise ValueError("thread_id 非法：须为 UUID")
 
 
-async def check_owner(session: Session, thread_id: str, owner: str, *, must_exist: bool) -> None:
-    current = await get_owner(session, thread_id)
+def check_owner(session: Session, thread_id: str, owner: str, *, must_exist: bool) -> None:
+    current = get_owner(session, thread_id)
     if current is None:
         if must_exist:
             raise ValueError(f"会话 {thread_id} 不存在")
@@ -84,39 +84,37 @@ def _inspect_local(local_path: str) -> tuple[bool, int]:
     return True, os.path.getsize(local_path)
 
 
-async def _snapshot_to_minio(
+def _snapshot_to_minio(
     *, thread_id: str, modal: ModalGateway, minio: MinioGateway
 ) -> tuple[str, list[dict], list[dict]]:
-    remote, skipped = await modal.list_files(thread_id, WORK_ROOT)
+    remote, skipped = modal.list_files(thread_id, WORK_ROOT)
     checkpoint = utc_timestamp()
     entries: list[dict] = []
     if not remote:
         return checkpoint, entries, skipped
     with tempfile.TemporaryDirectory(prefix="snapshot-") as tmpdir:
-        local_paths = await modal.download_to_local(thread_id, remote, tmpdir)
+        local_paths = modal.download_to_local(thread_id, remote, tmpdir)
         for remote_path, local_path in zip(remote, local_paths, strict=True):
             if local_path is None:
                 skipped.append({"path": remote_path, "reason": "下载失败或非普通文件"})
                 continue
-            ok, size = await asyncio.to_thread(_inspect_local, local_path)
+            ok, size = _inspect_local(local_path)
             if not ok:
                 skipped.append({"path": remote_path, "reason": "下载失败或非普通文件"})
                 continue
             rel = sanitize_rel(remote_path[len(WORK_ROOT) + 1 :])
-            await asyncio.to_thread(
-                minio.put_file, work_key(thread_id, rel), local_path, "application/octet-stream"
-            )
+            minio.put_file(work_key(thread_id, rel), local_path, "application/octet-stream")
             entries.append(
                 {
                     "path": rel,
                     "size": size,
-                    "sha256": await asyncio.to_thread(sha256_file, local_path),
+                    "sha256": sha256_file(local_path),
                 }
             )
     return checkpoint, entries, skipped
 
 
-async def _write_manifest(
+def _write_manifest(
     *,
     thread_id: str,
     checkpoint: str,
@@ -132,12 +130,10 @@ async def _write_manifest(
         "files": sorted(entries, key=lambda e: e["path"]),
         "skipped": skipped,
     }
-    await asyncio.to_thread(
-        minio.put_bytes, manifest_key(thread_id), json.dumps(manifest).encode(), "application/json"
-    )
+    minio.put_bytes(manifest_key(thread_id), json.dumps(manifest).encode(), "application/json")
 
 
-async def snapshot_session(
+def snapshot_session(
     *,
     thread_id: str,
     owner: str,
@@ -146,11 +142,9 @@ async def snapshot_session(
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    await check_owner(session, thread_id, owner, must_exist=True)
-    checkpoint, entries, skipped = await _snapshot_to_minio(
-        thread_id=thread_id, modal=modal, minio=minio
-    )
-    await _write_manifest(
+    check_owner(session, thread_id, owner, must_exist=True)
+    checkpoint, entries, skipped = _snapshot_to_minio(thread_id=thread_id, modal=modal, minio=minio)
+    _write_manifest(
         thread_id=thread_id,
         checkpoint=checkpoint,
         entries=entries,
@@ -161,7 +155,7 @@ async def snapshot_session(
     return {"thread_id": thread_id, "checkpoint": checkpoint, "files": len(entries)}
 
 
-async def ensure_session(
+def ensure_session(
     *,
     thread_id: str,
     owner: str,
@@ -170,10 +164,10 @@ async def ensure_session(
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    await claim_owner(session, thread_id, owner)
-    sandbox_id = await modal.ensure(thread_id)
+    claim_owner(session, thread_id, owner)
+    sandbox_id = modal.ensure(thread_id)
     prefix, in_prefix = work_prefix(thread_id), input_prefix(thread_id)
-    manifest_raw = await asyncio.to_thread(minio.get_bytes, manifest_key(thread_id))
+    manifest_raw = minio.get_bytes(manifest_key(thread_id))
     manifest_files: dict[str, str | None] | None = None
     if manifest_raw is not None:
         try:
@@ -181,40 +175,37 @@ async def ensure_session(
         except (ValueError, KeyError, AttributeError, TypeError) as e:
             raise ValueError("快照 manifest 损坏，无法恢复") from e
     if manifest_files is None:
-        keys = await asyncio.to_thread(minio.list_keys, prefix)
+        keys = minio.list_keys(prefix)
         manifest_path = manifest_key(thread_id)
         wanted = {sanitize_rel(k["key"][len(prefix) :]) for k in keys if k["key"] != manifest_path}
         expected: dict[str, str | None] = dict.fromkeys(wanted)
     else:
         expected = dict(manifest_files)
-    semaphore = asyncio.Semaphore(RESTORE_CONCURRENCY)
 
-    async def _fetch(rel: str) -> tuple[str, bytes]:
-        async with semaphore:
-            data = await asyncio.to_thread(minio.get_bytes, work_key(thread_id, rel))
+    def _fetch(rel: str) -> tuple[str, bytes]:
+        data = minio.get_bytes(work_key(thread_id, rel))
         if data is None:
             raise ValueError(f"快照缺文件无法恢复：{rel}")
-        if expected[rel] is not None:
-            digest = await asyncio.to_thread(hashlib.sha256, data)
-            if digest.hexdigest() != expected[rel]:
-                raise ValueError(f"快照校验不一致无法恢复：{rel}")
+        if expected[rel] is not None and hashlib.sha256(data).hexdigest() != expected[rel]:
+            raise ValueError(f"快照校验不一致无法恢复：{rel}")
         return rel, data
 
     files: dict[str, bytes] = {}
     if expected:
-        for rel, data in await asyncio.gather(*(_fetch(r) for r in expected)):
-            files[f"{WORK_ROOT}/{rel}"] = data
-    inputs = await asyncio.to_thread(minio.list_keys, in_prefix)
+        with ThreadPoolExecutor(max_workers=RESTORE_CONCURRENCY) as pool:
+            for rel, data in pool.map(_fetch, expected):
+                files[f"{WORK_ROOT}/{rel}"] = data
+    inputs = minio.list_keys(in_prefix)
 
-    async def _fetch_input(key: str) -> tuple[str, bytes | None]:
-        async with semaphore:
-            return key, await asyncio.to_thread(minio.get_bytes, key)
+    def _fetch_input(key: str) -> tuple[str, bytes | None]:
+        return key, minio.get_bytes(key)
 
-    for key, data in await asyncio.gather(*(_fetch_input(i["key"]) for i in inputs)):
-        if data is not None:
-            files[f"{INPUT_ROOT}/{key[len(in_prefix) :]}"] = data
+    with ThreadPoolExecutor(max_workers=RESTORE_CONCURRENCY) as pool:
+        for key, data in pool.map(_fetch_input, (i["key"] for i in inputs)):
+            if data is not None:
+                files[f"{INPUT_ROOT}/{key[len(in_prefix) :]}"] = data
     if files:
-        await modal.upload(thread_id, files)
+        modal.upload(thread_id, files)
     return {
         "thread_id": thread_id,
         "sandbox_id": sandbox_id,
@@ -223,7 +214,7 @@ async def ensure_session(
     }
 
 
-async def close_session(
+def close_session(
     *,
     thread_id: str,
     owner: str,
@@ -232,11 +223,9 @@ async def close_session(
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    await check_owner(session, thread_id, owner, must_exist=True)
-    checkpoint, entries, skipped = await _snapshot_to_minio(
-        thread_id=thread_id, modal=modal, minio=minio
-    )
-    await _write_manifest(
+    check_owner(session, thread_id, owner, must_exist=True)
+    checkpoint, entries, skipped = _snapshot_to_minio(thread_id=thread_id, modal=modal, minio=minio)
+    _write_manifest(
         thread_id=thread_id,
         checkpoint=checkpoint,
         entries=entries,
@@ -244,5 +233,5 @@ async def close_session(
         minio=minio,
         closed=True,
     )
-    await modal.terminate(thread_id)
+    modal.terminate(thread_id)
     return {"thread_id": thread_id, "checkpoint": checkpoint, "files": len(entries)}

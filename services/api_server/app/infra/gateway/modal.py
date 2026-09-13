@@ -1,10 +1,9 @@
-import asyncio
 import os
 import posixpath
 import threading
 import time
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import modal
 from modal.exception import SandboxFilesystemError
@@ -24,29 +23,29 @@ class ModalGateway:
         self._app_name = app_name
         self._idle_timeout = idle_timeout
         self._timeout = timeout
-        self._locks: dict[str, asyncio.Lock] = {}
-        self._locks_guard = asyncio.Lock()
+        self._locks: dict[str, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
         self._lock_users: dict[str, int] = {}
         self._app_id: str | None = None
         self._app_lock = threading.Lock()
 
-    async def _lock_for(self, thread_id: str) -> asyncio.Lock:
-        async with self._locks_guard:
-            lock = self._locks.setdefault(thread_id, asyncio.Lock())
+    def _lock_for(self, thread_id: str) -> threading.Lock:
+        with self._locks_guard:
+            lock = self._locks.setdefault(thread_id, threading.Lock())
             self._lock_users[thread_id] = self._lock_users.get(thread_id, 0) + 1
             return lock
 
-    @asynccontextmanager
-    async def locked(self, thread_id: str) -> AsyncIterator[None]:
-        lock = await self._lock_for(thread_id)
+    @contextmanager
+    def locked(self, thread_id: str) -> Iterator[None]:
+        lock = self._lock_for(thread_id)
         try:
-            async with lock:
+            with lock:
                 yield
         finally:
-            await self._drop_lock(thread_id)
+            self._drop_lock(thread_id)
 
-    async def _drop_lock(self, thread_id: str) -> None:
-        async with self._locks_guard:
+    def _drop_lock(self, thread_id: str) -> None:
+        with self._locks_guard:
             remaining = self._lock_users.get(thread_id, 1) - 1
             if remaining <= 0:
                 self._lock_users.pop(thread_id, None)
@@ -96,18 +95,15 @@ class ModalGateway:
     def _require(self, thread_id: str) -> modal.Sandbox:
         sandbox = self._find(thread_id)
         if sandbox is None:
-            raise SandboxMissingError(
-                f"thread {thread_id} 的 sandbox 不存在，请先调 /sessions/ensure"
-            )
+            raise SandboxMissingError("会话环境不存在，请重新创建会话")
         return sandbox
 
-    async def ensure(self, thread_id: str) -> str:
-        lock = await self._lock_for(thread_id)
-        async with lock:
-            found = await asyncio.to_thread(self._find, thread_id)
+    def ensure(self, thread_id: str) -> str:
+        with self.locked(thread_id):
+            found = self._find(thread_id)
             if found is not None:
                 return found.object_id
-            return (await asyncio.to_thread(self._create, thread_id)).object_id
+            return self._create(thread_id).object_id
 
     def _resolve_link(self, entry) -> str | None:
         target = entry.symlink_target
@@ -161,40 +157,34 @@ class ModalGateway:
         except SandboxFilesystemError:
             return [], [{"path": LIST_ROOT, "reason": "列举失败"}]
 
-    async def list_files(self, thread_id: str, root: str) -> tuple[list[str], list[dict]]:
-        return await asyncio.to_thread(self._list_files, thread_id, root)
+    def list_files(self, thread_id: str, root: str) -> tuple[list[str], list[dict]]:
+        return self._list_files(thread_id, root)
 
-    async def download_to_local(
+    def download_to_local(
         self, thread_id: str, paths: list[str], dest_dir: str
     ) -> list[str | None]:
-        def _run() -> list[str | None]:
-            sandbox = self._require(thread_id)
-            local_paths: list[str | None] = []
-            for index, path in enumerate(paths):
-                local_path = os.path.join(dest_dir, f"f{index}")
-                try:
-                    sandbox.filesystem.copy_to_local(path, local_path)
-                except SandboxFilesystemError:
-                    local_paths.append(None)
-                else:
-                    local_paths.append(local_path)
-            return local_paths
+        sandbox = self._require(thread_id)
+        local_paths: list[str | None] = []
+        for index, path in enumerate(paths):
+            local_path = os.path.join(dest_dir, f"f{index}")
+            try:
+                sandbox.filesystem.copy_to_local(path, local_path)
+            except SandboxFilesystemError:
+                local_paths.append(None)
+            else:
+                local_paths.append(local_path)
+        return local_paths
 
-        return await asyncio.to_thread(_run)
-
-    async def upload(self, thread_id: str, files: dict[str, bytes]) -> None:
-        def _run() -> None:
+    def upload(self, thread_id: str, files: dict[str, bytes]) -> None:
+        with self.locked(thread_id):
             sandbox = self._require(thread_id)
             for path, content in files.items():
                 sandbox.filesystem.write_bytes(bytes(content), path)
 
-        async with self.locked(thread_id):
-            await asyncio.to_thread(_run)
-
-    async def terminate(self, thread_id: str) -> bool:
-        async with self.locked(thread_id):
-            found = await asyncio.to_thread(self._find, thread_id)
+    def terminate(self, thread_id: str) -> bool:
+        with self.locked(thread_id):
+            found = self._find(thread_id)
             if found is None:
                 return False
-            await asyncio.to_thread(found.terminate)
+            found.terminate()
             return True

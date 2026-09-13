@@ -1,4 +1,3 @@
-import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -17,7 +16,7 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     if "*" in settings.cors_origins_list:
         raise RuntimeError("CORS_ORIGINS 不允许用 *（已开启 allow_credentials）")
-    await ensure_table()
+    ensure_table()
     minio = MinioGateway(
         endpoint_url=settings.s3_endpoint_url,
         bucket=settings.s3_bucket,
@@ -25,7 +24,7 @@ async def lifespan(app: FastAPI):
         access_key=settings.s3_access_key,
         secret_key=settings.s3_secret_key,
     )
-    await asyncio.to_thread(minio.ensure_bucket)
+    minio.ensure_bucket()
     app.state.minio = minio
     app.state.modal = ModalGateway(
         app_name=settings.modal_app,
@@ -33,7 +32,7 @@ async def lifespan(app: FastAPI):
         timeout=settings.modal_timeout_seconds,
     )
     yield
-    await asyncio.to_thread(get_engine().dispose)
+    get_engine().dispose()
 
 
 app = FastAPI(title="ai-game-api", lifespan=lifespan)
@@ -50,5 +49,5 @@ app.include_router(games.router)
 
 
 @app.get("/health")
-async def health() -> dict:
+def health() -> dict:
     return {"ok": True}

@@ -14,11 +14,11 @@ class EnsureBody(BaseModel):
 
 
 @router.post("/sessions/ensure")
-async def ensure(
+def ensure(
     body: EnsureBody, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
 ) -> dict:
     try:
-        return await session_service.ensure_session(
+        return session_service.ensure_session(
             thread_id=body.thread_id.strip(),
             owner=owner,
             session=session,
@@ -34,11 +34,11 @@ async def ensure(
 
 
 @router.post("/sessions/{thread_id}/checkpoint")
-async def checkpoint(
+def checkpoint(
     thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
 ) -> dict:
     try:
-        return await session_service.snapshot_session(
+        return session_service.snapshot_session(
             thread_id=thread_id,
             owner=owner,
             session=session,
@@ -54,11 +54,11 @@ async def checkpoint(
 
 
 @router.post("/sessions/{thread_id}/close")
-async def close(
+def close(
     thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
 ) -> dict:
     try:
-        return await session_service.close_session(
+        return session_service.close_session(
             thread_id=thread_id,
             owner=owner,
             session=session,

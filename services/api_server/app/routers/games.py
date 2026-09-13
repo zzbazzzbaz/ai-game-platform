@@ -13,11 +13,11 @@ UPLOAD_CHUNK = 1024 * 256
 
 
 @router.post("/sessions/{thread_id}/publish")
-async def publish(
+def publish(
     thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
 ) -> dict:
     try:
-        return await publish_service.publish_version(
+        return publish_service.publish_version(
             thread_id=thread_id,
             owner=owner,
             session=session,
@@ -33,9 +33,9 @@ async def publish(
 
 
 @router.get("/sessions/{thread_id}/versions")
-async def versions(thread_id: str, session: SessionDep, minio: MinioDep, owner: UserDep) -> dict:
+def versions(thread_id: str, session: SessionDep, minio: MinioDep, owner: UserDep) -> dict:
     try:
-        items = await publish_service.list_versions(
+        items = publish_service.list_versions(
             thread_id=thread_id, owner=owner, session=session, minio=minio
         )
     except PermissionError as e:
@@ -48,7 +48,7 @@ async def versions(thread_id: str, session: SessionDep, minio: MinioDep, owner: 
 
 
 @router.post("/sessions/{thread_id}/input")
-async def upload_input(
+def upload_input(
     thread_id: str,
     file: UploadFile,
     session: SessionDep,
@@ -57,8 +57,8 @@ async def upload_input(
 ) -> dict:
     filename = (file.filename or "").split("/")[-1].split("\\")[-1]
     try:
-        data = await _read_capped(file)
-        return await publish_service.store_input(
+        data = _read_capped(file)
+        return publish_service.store_input(
             thread_id=thread_id,
             owner=owner,
             filename=filename,
@@ -75,12 +75,12 @@ async def upload_input(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-async def _read_capped(file: UploadFile) -> bytes:
+def _read_capped(file: UploadFile) -> bytes:
     if file.size is not None and file.size > MAX_INPUT_BYTES:
         raise ValueError("素材超过 5MB")
     chunks, total = [], 0
     while True:
-        chunk = await file.read(UPLOAD_CHUNK)
+        chunk = file.file.read(UPLOAD_CHUNK)
         if not chunk:
             return b"".join(chunks)
         total += len(chunk)
@@ -90,7 +90,7 @@ async def _read_capped(file: UploadFile) -> bytes:
 
 
 @router.get("/games/{thread_id}/{version}/index.html")
-async def play(
+def play(
     thread_id: str,
     version: str,
     session: SessionDep,
@@ -98,14 +98,14 @@ async def play(
     owner: FlexibleUserDep,
 ) -> Response:
     try:
-        resolved = await publish_service.resolve_version(
+        resolved = publish_service.resolve_version(
             thread_id=thread_id,
             owner=owner,
             version=version,
             session=session,
             minio=minio,
         )
-        stream = await publish_service.open_version_stream(
+        stream = publish_service.open_version_stream(
             minio=minio, thread_id=thread_id, version=resolved
         )
     except PermissionError as e:
@@ -120,7 +120,7 @@ async def play(
 
 
 @router.get("/games/{thread_id}/{version}/download")
-async def download(
+def download(
     thread_id: str,
     version: str,
     session: SessionDep,
@@ -128,7 +128,7 @@ async def download(
     owner: FlexibleUserDep,
 ) -> Response:
     try:
-        html = await publish_service.get_version_bytes(
+        html = publish_service.get_version_bytes(
             thread_id=thread_id,
             owner=owner,
             version=version,
