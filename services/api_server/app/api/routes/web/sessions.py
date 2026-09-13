@@ -1,17 +1,13 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
-from app.routers.deps import MinioDep, ModalDep, SessionDep, UserDep
+from app.api.dependencies import MinioDep, ModalDep, SessionDep, UserDep
+from app.api.schemas.sessions import EnsureBody
 from app.services import session_service
 
-router = APIRouter()
+router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
-class EnsureBody(BaseModel):
-    thread_id: str
-
-
-@router.post("/sessions/ensure")
+@router.post("/ensure")
 def ensure(
     body: EnsureBody, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
 ) -> dict:
@@ -31,7 +27,7 @@ def ensure(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/sessions/{thread_id}/checkpoint")
+@router.post("/{thread_id}/checkpoint")
 def checkpoint(
     thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
 ) -> dict:
@@ -51,7 +47,7 @@ def checkpoint(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/sessions/{thread_id}/close")
+@router.post("/{thread_id}/close")
 def close(
     thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
 ) -> dict:

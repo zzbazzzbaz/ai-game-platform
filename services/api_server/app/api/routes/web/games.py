@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
-from app.routers.deps import FlexibleUserDep, MinioDep, ModalDep, SessionDep, UserDep
+from app.api.dependencies import FlexibleUserDep, MinioDep, ModalDep, SessionDep, UserDep
 from app.services import publish_service
 from app.services.publish_service import MAX_INPUT_BYTES, NotFoundError
 
-router = APIRouter()
+# 本文件路由横跨 /sessions/*（发布）与 /games/*（游玩），故不用 prefix，保持完整路径。
+router = APIRouter(tags=["games"])
 HTML_MEDIA_TYPE = "text/html; charset=utf-8"
 UPLOAD_CHUNK = 1024 * 256
 
