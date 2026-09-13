@@ -459,9 +459,9 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "deepagents" },
+    { name = "httpx" },
     { name = "langchain" },
     { name = "langchain-deepseek" },
-    { name = "langchain-modal" },
     { name = "langchain-openai" },
     { name = "langgraph-sdk" },
     { name = "langsmith" },
@@ -478,9 +478,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "deepagents", specifier = "==0.7.13" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain", specifier = "==1.4.0" },
     { name = "langchain-deepseek", specifier = "==1.1.0" },
-    { name = "langchain-modal", specifier = "==0.0.6" },
     { name = "langchain-openai", specifier = "==1.6.2" },
     { name = "langgraph-sdk", specifier = "==0.4.4" },
     { name = "langsmith", specifier = "==0.12.4" },
@@ -906,19 +906,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/cf/4e/41798c80b574d958d189e049f13d64eb9246a66623465290f2cbfd641759/langchain_google_genai-4.4.0.tar.gz", hash = "sha256:7871beec56ac07b719f77c46997845db6ff2267b817bffb0f97877053b0895d7", size = 378415, upload-time = "2026-09-01T20:15:45.816Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/10/83bb535e78c2cf767a6193c2f3b00b2894c1581a36ef85911ebaa3b9a891/langchain_google_genai-4.4.0-py3-none-any.whl", hash = "sha256:8e23a1307bd2158590bbf9d99f1d658fc84a9d9ddb77fb1b372f8875a2bafbbf", size = 81617, upload-time = "2026-09-01T20:15:44.533Z" },
-]
-
-[[package]]
-name = "langchain-modal"
-version = "0.0.6"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "deepagents" },
-    { name = "modal" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/74/e8/c364ac18bd1d348f80bc334818ba89e1e0544b87cacf42d0b78cd5a49916/langchain_modal-0.0.6.tar.gz", hash = "sha256:7e1fe4dc0cae0937cfb9bd82946787e351fc9d4972be2963cdba8d43a194c2f7", size = 191018, upload-time = "2026-07-29T18:02:01.618Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d1/a9/500b528c5a837b2960a3f87d3f558f5dde4299a0ba2ab916fd103bf16ff8/langchain_modal-0.0.6-py3-none-any.whl", hash = "sha256:6d43caa94e6846151592f1828a9c9380b7ceda90ace45fce1c3cad74c4edfa8c", size = 4754, upload-time = "2026-07-29T18:02:00.62Z" },
 ]
 
 [[package]]

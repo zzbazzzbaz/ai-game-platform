@@ -1,0 +1,24 @@
+import modal
+from modal.exception import NotFoundError
+
+from agent.settings import get_settings
+
+SANDBOX_NAME_PREFIX = "game-"
+SANDBOX_TAG_THREAD = "aigame-thread"
+
+
+def sandbox_name(thread_id: str) -> str:
+    return f"{SANDBOX_NAME_PREFIX}{thread_id}"
+
+
+def sandbox_tags(thread_id: str) -> dict[str, str]:
+    return {SANDBOX_TAG_THREAD: thread_id}
+
+
+def attach_thread_sandbox(thread_id: str) -> modal.Sandbox:
+    try:
+        return modal.Sandbox.from_name(get_settings().MODAL_APP, sandbox_name(thread_id))
+    except NotFoundError:
+        raise RuntimeError(
+            f"thread {thread_id} 的 sandbox 不存在，请先调 api /sessions/ensure 创建会话"
+        ) from None

@@ -27,13 +27,12 @@ services:
       retries: 10
 
   langgraph-server:
-    build: ../agent_server
     restart: unless-stopped
     ports:
       - "2024:8000"
     env_file: .env
     environment:
-      DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable
+      DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=prefer
       REDIS_URI: redis://${REDIS_HOST}:${REDIS_PORT}/0
     depends_on:
       postgres:
@@ -42,7 +41,6 @@ services:
         condition: service_healthy
 
   api-server:
-    build: ../api_server
     restart: unless-stopped
     ports:
       - "8000:8000"

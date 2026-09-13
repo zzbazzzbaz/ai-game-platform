@@ -1,5 +1,6 @@
 docs/chat/
 docs/test/
+docs/agent-chat-ui/
 services/.env.local
 opencode.json
 # macOS
