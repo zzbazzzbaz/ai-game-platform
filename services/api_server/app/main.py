@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.infra.db.engine import get_engine
+from app.infra.db.engine import create_db_engine, create_session_factory
 from app.infra.gateway.minio import MinioGateway
 from app.infra.gateway.modal import ModalGateway
 from app.routers.v1 import router as v1_router
@@ -16,7 +16,10 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     if "*" in settings.cors_origins_list:
         raise RuntimeError("CORS_ORIGINS 不允许用 *（已开启 allow_credentials）")
-    ensure_table()
+    engine = create_db_engine(settings.sqlalchemy_database_url)
+    ensure_table(engine)
+    app.state.engine = engine
+    app.state.session_factory = create_session_factory(engine)
     minio = MinioGateway(
         endpoint_url=settings.s3_endpoint_url,
         bucket=settings.s3_bucket,
@@ -32,7 +35,7 @@ async def lifespan(app: FastAPI):
         timeout=settings.modal_timeout_seconds,
     )
     yield
-    get_engine().dispose()
+    engine.dispose()
 
 
 app = FastAPI(title="ai-game-api", lifespan=lifespan)

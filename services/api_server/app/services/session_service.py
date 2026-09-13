@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.infra.db.engine import get_engine
 from app.infra.db.models import Base, ThreadOwner
 from app.infra.gateway.minio import (
     MinioGateway,
@@ -36,8 +35,8 @@ def check_thread_id(thread_id: str) -> None:
         raise ValueError("thread_id 非法：须为 UUID")
 
 
-def ensure_table() -> None:
-    Base.metadata.create_all(get_engine())
+def ensure_table(engine) -> None:
+    Base.metadata.create_all(engine)
 
 
 def get_owner(session: Session, thread_id: str) -> str | None:
