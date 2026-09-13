@@ -1,12 +1,21 @@
+from collections.abc import Iterator
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from app.infra.db.session import get_session
 from app.infra.gateway.minio import MinioGateway
 from app.infra.gateway.modal import ModalGateway
 from app.services.auth_service import verify_token
+
+
+def get_session(request: Request) -> Iterator[Session]:
+    with request.app.state.session_factory() as session:
+        try:
+            yield session
+        except Exception:
+            session.rollback()
+            raise
 
 
 def get_modal(request: Request) -> ModalGateway:
