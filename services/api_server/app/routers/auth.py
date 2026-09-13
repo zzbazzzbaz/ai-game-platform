@@ -1,39 +1,14 @@
 import hmac
 import secrets
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
+from app.deps import _bearer
 from app.services.auth_service import USER_ID_RE, sign_token, verify_token
 from app.settings import get_settings
 
 router = APIRouter()
-
-
-def _bearer(request: Request) -> str | None:
-    auth = request.headers.get("Authorization", "")
-    if auth.lower().startswith("bearer "):
-        return auth[7:].strip()
-    return None
-
-
-def require_user(request: Request) -> str:
-    user_id = verify_token(_bearer(request) or "")
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="登录已失效，请重新登录")
-    return user_id
-
-
-def require_user_flexible(request: Request, token: str = Query(default="")) -> str:
-    user_id = verify_token(_bearer(request) or token)
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="登录已失效，请重新登录")
-    return user_id
-
-
-UserDep = Annotated[str, Depends(require_user)]
-FlexibleUserDep = Annotated[str, Depends(require_user_flexible)]
 
 
 class LoginBody(BaseModel):

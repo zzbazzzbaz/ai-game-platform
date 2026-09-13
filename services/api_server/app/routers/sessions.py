@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.deps import MinioDep, ModalDep, SessionDep
-from app.routers.auth import UserDep
+from app.deps import MinioDep, ModalDep, SessionDep, UserDep
 from app.services import session_service
 
 router = APIRouter()
