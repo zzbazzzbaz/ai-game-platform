@@ -11,7 +11,6 @@ from agent.infra.skill_sync import SKILL_MOUNT_DIR, sync_skill
 from agent.prompts.game_designer import SYSTEM_PROMPT
 from agent.tools.design import submit_game_design
 
-
 DESIGN_INTERRUPT_ON: dict[str, InterruptOnConfig] = {
     "submit_game_design": {"allowed_decisions": ["approve", "edit", "reject"]}
 }
