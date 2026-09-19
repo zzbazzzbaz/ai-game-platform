@@ -22,5 +22,6 @@
   - 同步模式：路由用 `def`、同步 `Session`，不引入 async/AsyncSession。
   - DTO 归属 `api/schemas/`，不用 `app/schemas/`。
   - 自定义异常 + `api/errors.py` 全局 handler，路由不做 try/except 错误映射。
+  - 常量全部集中 `core/constants.py`（路径/分块/沙箱/版本/正则/媒体类型/大小限制），业务模块禁止新增模块级常量（运行期对象如下划线开头的锁/元组除外）。
 - 错误 `detail` 用中文。
 - 新增 DB 访问先加 repository 方法，再由 service 调用。

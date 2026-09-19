@@ -1,10 +1,8 @@
 import modal
 from modal.exception import NotFoundError
 
-from agent.settings import get_settings
-
-SANDBOX_NAME_PREFIX = "game-"
-SANDBOX_TAG_THREAD = "aigame-thread"
+from agent.core.config import get_settings
+from agent.core.constants import SANDBOX_NAME_PREFIX, SANDBOX_TAG_THREAD
 
 
 def sandbox_name(thread_id: str) -> str:

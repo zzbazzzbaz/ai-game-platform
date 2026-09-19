@@ -2,14 +2,21 @@ import hashlib
 import json
 import os
 import posixpath
-import re
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
 
-from app.core.constants import CHUNK_SIZE, INPUT_ROOT, WORK_ROOT
+from app.core.constants import (
+    BINARY_MEDIA_TYPE,
+    FILE_CHUNK_SIZE,
+    INPUT_ROOT,
+    JSON_MEDIA_TYPE,
+    RESTORE_CONCURRENCY,
+    THREAD_ID_PATTERN,
+    WORK_ROOT,
+)
 from app.core.exceptions import ForbiddenError, ValidationError
 from app.gateways.minio import (
     MinioGateway,
@@ -22,14 +29,9 @@ from app.gateways.minio import (
 from app.gateways.modal import ModalGateway
 from app.repositories.thread_owner_repository import thread_owner_repository
 
-THREAD_ID_RE = re.compile(
-    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-)
-RESTORE_CONCURRENCY = 8
-
 
 def check_thread_id(thread_id: str) -> None:
-    if not THREAD_ID_RE.match(thread_id):
+    if not THREAD_ID_PATTERN.match(thread_id):
         raise ValidationError("thread_id 非法：须为 UUID")
 
 
@@ -86,7 +88,7 @@ def _parse_manifest_files(raw: object) -> dict[str, str | None]:
 def sha256_file(path: str) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(CHUNK_SIZE), b""):
+        for chunk in iter(lambda: handle.read(FILE_CHUNK_SIZE), b""):
             digest.update(chunk)
     return digest.hexdigest()
 
@@ -116,7 +118,7 @@ def _snapshot_to_minio(
                 skipped.append({"path": remote_path, "reason": "下载失败或非普通文件"})
                 continue
             rel = sanitize_rel(remote_path[len(WORK_ROOT) + 1 :])
-            minio.put_file(work_key(thread_id, rel), local_path, "application/octet-stream")
+            minio.put_file(work_key(thread_id, rel), local_path, BINARY_MEDIA_TYPE)
             entries.append(
                 {
                     "path": rel,
@@ -143,7 +145,7 @@ def _write_manifest(
         "files": sorted(entries, key=lambda e: e["path"]),
         "skipped": skipped,
     }
-    minio.put_bytes(manifest_key(thread_id), json.dumps(manifest).encode(), "application/json")
+    minio.put_bytes(manifest_key(thread_id), json.dumps(manifest).encode(), JSON_MEDIA_TYPE)
 
 
 def snapshot_session(

@@ -3,7 +3,7 @@ from functools import lru_cache
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 
-from agent.settings import get_settings
+from agent.core.config import get_settings
 
 
 @lru_cache

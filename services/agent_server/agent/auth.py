@@ -1,7 +1,8 @@
 import httpx
 from langgraph_sdk import Auth
 
-from agent.settings import get_settings
+from agent.core.config import get_settings
+from agent.core.constants import AUTH_VERIFY_TIMEOUT_SECONDS
 
 auth = Auth()
 
@@ -12,7 +13,7 @@ async def authenticate(authorization: str | None) -> Auth.types.MinimalUserDict:
         raise Auth.exceptions.HTTPException(status_code=401, detail="缺少登录 token，请先登录")
     settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=AUTH_VERIFY_TIMEOUT_SECONDS) as client:
             resp = await client.get(
                 f"{settings.internal_verify_url}",
                 headers={

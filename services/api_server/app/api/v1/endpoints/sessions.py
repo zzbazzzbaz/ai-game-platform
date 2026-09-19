@@ -9,10 +9,9 @@ from app.api.schemas.sessions import (
     PublishResponse,
     VersionsResponse,
 )
-from app.core.constants import CHUNK_SIZE
+from app.core.constants import BINARY_MEDIA_TYPE, FILE_CHUNK_SIZE, MAX_INPUT_BYTES
 from app.core.exceptions import ValidationError
 from app.services import publish_service, session_service
-from app.services.publish_service import MAX_INPUT_BYTES
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -92,7 +91,7 @@ def upload_input(
         user_id=user_id,
         filename=filename,
         data=data,
-        content_type=file.content_type or "application/octet-stream",
+        content_type=file.content_type or BINARY_MEDIA_TYPE,
         session=session,
         minio=minio,
     )
@@ -103,7 +102,7 @@ def _read_capped(file: UploadFile) -> bytes:
         raise ValidationError("素材超过 5MB")
     chunks, total = [], 0
     while True:
-        chunk = file.file.read(CHUNK_SIZE)
+        chunk = file.file.read(FILE_CHUNK_SIZE)
         if not chunk:
             return b"".join(chunks)
         total += len(chunk)

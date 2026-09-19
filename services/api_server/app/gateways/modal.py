@@ -8,12 +8,16 @@ from contextlib import contextmanager
 import modal
 from modal.exception import SandboxFilesystemError
 
-from app.core.constants import INPUT_ROOT, WORK_ROOT
+from app.core.constants import (
+    INPUT_ROOT,
+    SANDBOX_EXEC_TIMEOUT_SECONDS,
+    SANDBOX_NAME_PREFIX,
+    SANDBOX_READY_INTERVAL_SECONDS,
+    SANDBOX_READY_RETRIES,
+    SANDBOX_TAG_THREAD,
+    WORK_ROOT,
+)
 from app.core.exceptions import UpstreamError, ValidationError
-
-SANDBOX_NAME_PREFIX = "game-"
-SANDBOX_TAG_THREAD = "aigame-thread"
-READY_RETRIES = 10
 
 
 class SandboxMissingError(UpstreamError):
@@ -78,7 +82,7 @@ class ModalGateway:
             timeout=self._timeout,
         )
         last_error = "创建后无响应"
-        for _ in range(READY_RETRIES):
+        for _ in range(SANDBOX_READY_RETRIES):
             try:
                 code, _, err = self._exec(sandbox, f"mkdir -p {WORK_ROOT} {INPUT_ROOT}")
                 if code == 0:
@@ -86,11 +90,11 @@ class ModalGateway:
                 last_error = err or f"退出码 {code}"
             except Exception as e:
                 last_error = str(e)
-            time.sleep(3)
+            time.sleep(SANDBOX_READY_INTERVAL_SECONDS)
         raise UpstreamError(f"sandbox 创建后未就绪：{last_error}")
 
     def _exec(self, sandbox: modal.Sandbox, command: str) -> tuple[int, str, str]:
-        process = sandbox.exec("bash", "-c", command, timeout=60)
+        process = sandbox.exec("bash", "-c", command, timeout=SANDBOX_EXEC_TIMEOUT_SECONDS)
         process.wait()
         return process.returncode, process.stdout.read(), process.stderr.read()
 

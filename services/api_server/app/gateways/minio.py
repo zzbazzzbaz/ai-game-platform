@@ -1,13 +1,11 @@
-import re
 from datetime import UTC, datetime
 
 import boto3
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 
+from app.core.constants import VERSION_PATTERN, WORK_INDEX_FILE
 from app.core.exceptions import UpstreamError
-
-VERSION_RE = re.compile(r"^(\d{14}(?:_\d+)?)$")
 
 
 def threads_prefix(thread_id: str) -> str:
@@ -35,7 +33,7 @@ def input_key(thread_id: str, filename: str) -> str:
 
 
 def version_key(thread_id: str, version: str) -> str:
-    return f"threads/{thread_id}/{version}/index.html"
+    return f"threads/{thread_id}/{version}/{WORK_INDEX_FILE}"
 
 
 def utc_timestamp() -> str:
@@ -152,7 +150,7 @@ class MinioGateway:
         for item in self.list_keys(prefix):
             rest = item["key"][len(prefix) :]
             parts = rest.split("/")
-            if len(parts) == 2 and parts[1] == "index.html" and VERSION_RE.match(parts[0]):
+            if len(parts) == 2 and parts[1] == WORK_INDEX_FILE and VERSION_PATTERN.match(parts[0]):
                 versions.append({"version": parts[0], "size": item["size"]})
         versions.sort(key=lambda v: v["version"])
         return versions

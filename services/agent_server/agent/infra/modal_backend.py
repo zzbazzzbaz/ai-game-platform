@@ -11,13 +11,15 @@ from modal.exception import (
     SandboxFilesystemPermissionError,
 )
 
+from agent.core.constants import SANDBOX_DEFAULT_EXEC_TIMEOUT_SECONDS
+
 _MISSING = (FileNotFoundError, SandboxFilesystemError)
 
 
 class ModalBackend(BaseSandbox):
     def __init__(self, *, sandbox: modal.Sandbox) -> None:
         self._sandbox = sandbox
-        self._default_timeout = 30 * 60
+        self._default_timeout = SANDBOX_DEFAULT_EXEC_TIMEOUT_SECONDS
 
     @property
     def id(self) -> str:

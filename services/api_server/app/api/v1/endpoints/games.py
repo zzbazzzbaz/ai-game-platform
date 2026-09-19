@@ -2,10 +2,10 @@ from fastapi import APIRouter
 from fastapi.responses import Response, StreamingResponse
 
 from app.api.dependencies import MinioDep
+from app.core.constants import HTML_MEDIA_TYPE
 from app.services import publish_service
 
 router = APIRouter(prefix="/games", tags=["games"])
-HTML_MEDIA_TYPE = "text/html; charset=utf-8"
 
 
 @router.get("/{thread_id}/{version}/index.html")

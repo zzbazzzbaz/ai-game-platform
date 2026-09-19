@@ -2,13 +2,11 @@ import base64
 import hashlib
 import hmac
 import json
-import re
 import secrets
 import time
 
 from app.core.config import get_settings
-
-USER_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+from app.core.constants import USER_ID_PATTERN
 
 
 def _b64(data: bytes) -> str:
@@ -44,6 +42,6 @@ def verify_token(token: str) -> str | None:
         user_id = body.get("sub", "")
         if not isinstance(user_id, str):
             return None
-        return user_id if USER_ID_RE.match(user_id) else None
+        return user_id if USER_ID_PATTERN.match(user_id) else None
     except ValueError, KeyError:
         return None

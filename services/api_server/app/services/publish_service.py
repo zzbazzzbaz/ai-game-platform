@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -9,9 +8,26 @@ from html.parser import HTMLParser
 
 from sqlalchemy.orm import Session
 
+from app.core.constants import (
+    ESM_PATTERN,
+    FILENAME_PATTERN,
+    HTML_MEDIA_TYPE,
+    INLINE_REF_PREFIXES,
+    INLINE_RESOURCE_ATTRS,
+    INPUT_EXTENSIONS,
+    MAX_HTML_BYTES,
+    MAX_INPUT_BYTES,
+    MAX_SCRIPT_BYTES,
+    NODE_CHECK_TIMEOUT_SECONDS,
+    NODE_CONCURRENCY,
+    STREAM_CHUNK_SIZE,
+    VERSION_LATEST,
+    VERSION_MAX_ATTEMPTS,
+    VERSION_PATTERN,
+    WORK_INDEX_FILE,
+)
 from app.core.exceptions import NotFoundError, UpstreamError, ValidationError
 from app.gateways.minio import (
-    VERSION_RE,
     MinioGateway,
     input_key,
     utc_timestamp,
@@ -20,24 +36,6 @@ from app.gateways.minio import (
 )
 from app.gateways.modal import ModalGateway, SandboxMissingError
 from app.services.session_service import check_owner, check_thread_id, snapshot_session
-
-MAX_HTML_BYTES = 2 * 1024 * 1024
-MAX_SCRIPT_BYTES = 1024 * 1024
-RESOURCE_ATTRS = {
-    "script": ("src",),
-    "link": ("href",),
-    "img": ("src",),
-    "video": ("src", "poster"),
-    "audio": ("src",),
-    "source": ("src",),
-}
-INPUT_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".txt", ".md", ".json", ".csv"}
-MAX_INPUT_BYTES = 5 * 1024 * 1024
-FILENAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127}$")
-ESM_RE = re.compile(r"^\s*(import|export)\b", re.MULTILINE)
-VERSION_ATTEMPTS = 100
-STREAM_CHUNK = 1024 * 64
-NODE_CONCURRENCY = 4
 
 _NODE_SEMAPHORE = threading.Semaphore(NODE_CONCURRENCY)
 
@@ -65,7 +63,7 @@ class _RefCollector(HTMLParser):
             else:
                 self.in_inline_script = True
                 self.scripts.append("")
-        for attr in RESOURCE_ATTRS.get(name, ()):
+        for attr in INLINE_RESOURCE_ATTRS.get(name, ()):
             if name == "script" and attr == "src":
                 continue
             ref = attr_map.get(attr, "")
@@ -82,7 +80,7 @@ class _RefCollector(HTMLParser):
 
 
 def _is_inlineable_ref(ref: str) -> bool:
-    return ref.strip().lower().startswith(("data:", "blob:", "#"))
+    return ref.strip().lower().startswith(INLINE_REF_PREFIXES)
 
 
 def validate_index_html(html: bytes) -> list[str]:
@@ -123,14 +121,17 @@ def check_scripts_with_node(scripts: list[str]) -> None:
     if node is None:
         raise UpstreamError("校验环境缺 node，无法发布")
     for i, script in enumerate(scripts):
-        suffix = ".mjs" if ESM_RE.search(script) else ".js"
+        suffix = ".mjs" if ESM_PATTERN.search(script) else ".js"
         handle, path = tempfile.mkstemp(suffix=suffix)
         os.close(handle)
         try:
             with open(path, "w") as tmp:
                 tmp.write(script)
             proc = subprocess.run(
-                [node, "--check", path], capture_output=True, text=True, timeout=60
+                [node, "--check", path],
+                capture_output=True,
+                text=True,
+                timeout=NODE_CHECK_TIMEOUT_SECONDS,
             )
         finally:
             os.unlink(path)
@@ -140,28 +141,28 @@ def check_scripts_with_node(scripts: list[str]) -> None:
 
 
 def check_input_file(filename: str, size: int) -> None:
-    if not FILENAME_RE.match(filename):
+    if not FILENAME_PATTERN.match(filename):
         raise ValidationError("文件名非法：只允许字母数字及 _.-，且不能以点开头")
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in INPUT_EXTS:
+    if ext not in INPUT_EXTENSIONS:
         raise ValidationError("素材只支持图片与文本：png/jpg/gif/webp/svg/txt/md/json/csv")
     if size > MAX_INPUT_BYTES:
         raise ValidationError("素材超过 5MB")
 
 
 def check_version(version: str) -> None:
-    if version != "latest" and not VERSION_RE.match(version):
+    if version != VERSION_LATEST and not VERSION_PATTERN.match(version):
         raise ValidationError(f"版本非法：{version}")
 
 
 def _claim_version(minio: MinioGateway, thread_id: str, html: bytes) -> str:
     base = utc_timestamp()
-    for n in range(VERSION_ATTEMPTS):
+    for n in range(VERSION_MAX_ATTEMPTS):
         version = base if n == 0 else f"{base}_{n + 1}"
         claimed = minio.put_bytes_if_absent(
             version_key(thread_id, version),
             html,
-            "text/html; charset=utf-8",
+            HTML_MEDIA_TYPE,
         )
         if claimed:
             return version
@@ -185,7 +186,7 @@ def publish_version(
             )
         except SandboxMissingError:
             raise ValidationError("会话环境不存在，请先创建会话再发布") from None
-        html = minio.get_bytes(work_key(thread_id, "index.html"))
+        html = minio.get_bytes(work_key(thread_id, WORK_INDEX_FILE))
         if html is None:
             raise ValidationError("工作区还没有 /workspace/work/index.html，生成完成后再发布")
         scripts = validate_index_html(html)
@@ -207,7 +208,7 @@ def list_versions(
 def resolve_version(*, thread_id: str, version: str, minio: MinioGateway) -> str:
     check_thread_id(thread_id)
     check_version(version)
-    if version == "latest":
+    if version == VERSION_LATEST:
         items = minio.list_versions(thread_id)
         if not items:
             raise NotFoundError("该会话还没有已发布版本")
@@ -225,7 +226,7 @@ def get_version_bytes(*, thread_id: str, version: str, minio: MinioGateway) -> b
 
 def _stream_body(body) -> Iterator[bytes]:
     try:
-        yield from body.iter_chunks(chunk_size=STREAM_CHUNK)
+        yield from body.iter_chunks(chunk_size=STREAM_CHUNK_SIZE)
     finally:
         body.close()
 
