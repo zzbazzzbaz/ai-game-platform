@@ -4,14 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes.callback import router as callback_router
-from app.api.routes.health import router as health_router
-from app.api.routes.web import router as web_router
-from app.infra.db.engine import create_db_engine, create_session_factory
-from app.infra.gateway.minio import MinioGateway
-from app.infra.gateway.modal import ModalGateway
-from app.services.session_service import ensure_table
-from app.settings import Settings, get_settings
+from app.api.v1.router import api_router
+from app.core.config import API_V1_PREFIX, Settings, get_settings
+from app.core.database import create_all, create_db_engine, create_session_factory
+from app.gateways.minio import MinioGateway
+from app.gateways.modal import ModalGateway
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -20,7 +17,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
         engine = create_db_engine(resolved_settings.sqlalchemy_database_url)
-        ensure_table(engine)
+        create_all(engine)
         application.state.engine = engine
         application.state.session_factory = create_session_factory(engine)
         minio = MinioGateway(
@@ -42,7 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             engine.dispose()
 
-    application = FastAPI(title="ai-game-api", lifespan=lifespan)
+    application = FastAPI(title="ai-game-api", version="0.1.0", lifespan=lifespan)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=resolved_settings.cors_origins_list,
@@ -51,9 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     application.state.settings = resolved_settings
-    application.include_router(health_router)
-    application.include_router(web_router)
-    application.include_router(callback_router)
+    application.include_router(api_router, prefix=API_V1_PREFIX)
     return application
 
 

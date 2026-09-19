@@ -8,3 +8,7 @@ class LoginBody(BaseModel):
 class LoginResponse(BaseModel):
     token: str
     expires_in: int
+
+
+class VerifyResponse(BaseModel):
+    user_id: str

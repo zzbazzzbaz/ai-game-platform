@@ -4,9 +4,9 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.infra.gateway.minio import MinioGateway
-from app.infra.gateway.modal import ModalGateway
-from app.services.auth_service import verify_token
+from app.core.security import verify_token
+from app.gateways.minio import MinioGateway
+from app.gateways.modal import ModalGateway
 
 
 def get_session(request: Request) -> Iterator[Session]:

@@ -90,7 +90,7 @@ export default function Page() {
       return;
     }
     try {
-      const res = await fetch(baseOf(backendUrl) + "/web/auth/login", {
+      const res = await fetch(baseOf(backendUrl) + "/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: name }),
@@ -118,7 +118,7 @@ export default function Page() {
     }
     const id = crypto.randomUUID();
     try {
-      const res = await fetch(baseOf(backendUrl) + "/web/sessions/ensure", {
+      const res = await fetch(baseOf(backendUrl) + "/api/v1/sessions/ensure", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
         body: JSON.stringify({ thread_id: id }),
@@ -148,7 +148,7 @@ export default function Page() {
   async function refreshVersions(silent?: boolean) {
     if (!threadId || !token) return;
     try {
-      const res = await fetch(baseOf(backendUrl) + "/web/sessions/" + threadId + "/versions", {
+      const res = await fetch(baseOf(backendUrl) + "/api/v1/sessions/" + threadId + "/versions", {
         headers: { Authorization: "Bearer " + token },
       });
       const data = await res.json().catch(() => ({}));
@@ -175,7 +175,7 @@ export default function Page() {
       return;
     }
     try {
-      const res = await fetch(baseOf(backendUrl) + "/web/sessions/" + threadId + "/publish", {
+      const res = await fetch(baseOf(backendUrl) + "/api/v1/sessions/" + threadId + "/publish", {
         method: "POST",
         headers: { Authorization: "Bearer " + token },
       });
@@ -231,7 +231,7 @@ export default function Page() {
   const playSrc =
     threadId && selectedVersion
       ? baseOf(backendUrl) +
-        "/web/games/" +
+        "/api/v1/games/" +
         threadId +
         "/" +
         selectedVersion +

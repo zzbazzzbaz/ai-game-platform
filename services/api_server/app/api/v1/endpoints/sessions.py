@@ -1,7 +1,14 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 
 from app.api.dependencies import MinioDep, ModalDep, SessionDep, UserIdDep
-from app.api.schemas.sessions import EnsureBody
+from app.schemas.sessions import (
+    CheckpointResponse,
+    EnsureBody,
+    EnsureResponse,
+    InputResponse,
+    PublishResponse,
+    VersionsResponse,
+)
 from app.services import publish_service, session_service
 from app.services.publish_service import MAX_INPUT_BYTES
 
@@ -9,7 +16,7 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 UPLOAD_CHUNK = 1024 * 256
 
 
-@router.post("/ensure")
+@router.post("/ensure", response_model=EnsureResponse)
 def ensure(
     body: EnsureBody, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
 ) -> dict:
@@ -29,7 +36,7 @@ def ensure(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/{thread_id}/checkpoint")
+@router.post("/{thread_id}/checkpoint", response_model=CheckpointResponse)
 def checkpoint(
     thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
 ) -> dict:
@@ -49,7 +56,7 @@ def checkpoint(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/{thread_id}/close")
+@router.post("/{thread_id}/close", response_model=CheckpointResponse)
 def close(
     thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
 ) -> dict:
@@ -69,7 +76,7 @@ def close(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/{thread_id}/publish")
+@router.post("/{thread_id}/publish", response_model=PublishResponse)
 def publish(
     thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
 ) -> dict:
@@ -89,7 +96,7 @@ def publish(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.get("/{thread_id}/versions")
+@router.get("/{thread_id}/versions", response_model=VersionsResponse)
 def versions(thread_id: str, session: SessionDep, minio: MinioDep, user_id: UserIdDep) -> dict:
     try:
         items = publish_service.list_versions(
@@ -104,7 +111,7 @@ def versions(thread_id: str, session: SessionDep, minio: MinioDep, user_id: User
     return {"versions": items}
 
 
-@router.post("/{thread_id}/input")
+@router.post("/{thread_id}/input", response_model=InputResponse)
 def upload_input(
     thread_id: str,
     file: UploadFile,

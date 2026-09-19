@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     @property
     def internal_verify_url(self) -> str:
-        return f"{self.api_internal_url}/callback/verify"
+        return f"{self.api_internal_url}/api/v1/internal/verify"
 
 
 @lru_cache

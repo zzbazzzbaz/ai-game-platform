@@ -7,11 +7,9 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.infra.db.models import Base, ThreadOwner
-from app.infra.gateway.minio import (
+from app.gateways.minio import (
     MinioGateway,
     input_prefix,
     manifest_key,
@@ -19,7 +17,8 @@ from app.infra.gateway.minio import (
     work_key,
     work_prefix,
 )
-from app.infra.gateway.modal import ModalGateway
+from app.gateways.modal import ModalGateway
+from app.repositories.thread_owner_repository import thread_owner_repository
 
 THREAD_ID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -35,23 +34,13 @@ def check_thread_id(thread_id: str) -> None:
         raise ValueError("thread_id 非法：须为 UUID")
 
 
-def ensure_table(engine) -> None:
-    Base.metadata.create_all(engine)
-
-
 def get_owner(session: Session, thread_id: str) -> str | None:
-    row = session.get(ThreadOwner, thread_id)
+    row = thread_owner_repository.get(session, thread_id)
     return row.user_id if row else None
 
 
 def claim_owner(session: Session, thread_id: str, user_id: str) -> None:
-    now = int(time.time())
-    session.execute(
-        insert(ThreadOwner)
-        .values(thread_id=thread_id, user_id=user_id, created_at=now, updated_at=now)
-        .on_conflict_do_nothing(index_elements=["thread_id"])
-    )
-    session.commit()
+    thread_owner_repository.claim(session, thread_id, user_id)
     current = get_owner(session, thread_id)
     if current != user_id:
         if current is None:

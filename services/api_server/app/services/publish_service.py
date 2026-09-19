@@ -9,7 +9,7 @@ from html.parser import HTMLParser
 
 from sqlalchemy.orm import Session
 
-from app.infra.gateway.minio import (
+from app.gateways.minio import (
     VERSION_RE,
     MinioGateway,
     input_key,
@@ -17,7 +17,7 @@ from app.infra.gateway.minio import (
     version_key,
     work_key,
 )
-from app.infra.gateway.modal import ModalGateway, SandboxMissingError
+from app.gateways.modal import ModalGateway, SandboxMissingError
 from app.services.session_service import check_owner, check_thread_id, snapshot_session
 
 MAX_HTML_BYTES = 2 * 1024 * 1024
