@@ -3,8 +3,8 @@ import hmac
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.api.dependencies import UserIdDep
+from app.api.schemas.auth import VerifyResponse
 from app.core.config import Settings
-from app.schemas.auth import VerifyResponse
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 

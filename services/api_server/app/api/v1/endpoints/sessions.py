@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 
 from app.api.dependencies import MinioDep, ModalDep, SessionDep, UserIdDep
-from app.schemas.sessions import (
+from app.api.schemas.sessions import (
     CheckpointResponse,
     EnsureBody,
     EnsureResponse,
