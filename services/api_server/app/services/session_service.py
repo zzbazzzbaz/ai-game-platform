@@ -44,28 +44,28 @@ def get_owner(session: Session, thread_id: str) -> str | None:
     return row.owner if row else None
 
 
-def claim_owner(session: Session, thread_id: str, owner: str) -> None:
+def claim_owner(session: Session, thread_id: str, user_id: str) -> None:
     now = int(time.time())
     session.execute(
         insert(ThreadOwner)
-        .values(thread_id=thread_id, owner=owner, created_at=now, updated_at=now)
+        .values(thread_id=thread_id, owner=user_id, created_at=now, updated_at=now)
         .on_conflict_do_nothing(index_elements=["thread_id"])
     )
     session.commit()
     current = get_owner(session, thread_id)
-    if current != owner:
+    if current != user_id:
         if current is None:
             raise ValueError(f"会话 {thread_id} 不存在")
         raise PermissionError("无权操作他人会话")
 
 
-def check_owner(session: Session, thread_id: str, owner: str, *, must_exist: bool) -> None:
+def check_owner(session: Session, thread_id: str, user_id: str, *, must_exist: bool) -> None:
     current = get_owner(session, thread_id)
     if current is None:
         if must_exist:
             raise ValueError(f"会话 {thread_id} 不存在")
         return
-    if current != owner:
+    if current != user_id:
         raise PermissionError("无权操作他人会话")
 
 
@@ -161,13 +161,13 @@ def _write_manifest(
 def snapshot_session(
     *,
     thread_id: str,
-    owner: str,
+    user_id: str,
     session: Session,
     modal: ModalGateway,
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    check_owner(session, thread_id, owner, must_exist=True)
+    check_owner(session, thread_id, user_id, must_exist=True)
     checkpoint, entries, skipped = _snapshot_to_minio(thread_id=thread_id, modal=modal, minio=minio)
     _write_manifest(
         thread_id=thread_id,
@@ -183,13 +183,13 @@ def snapshot_session(
 def ensure_session(
     *,
     thread_id: str,
-    owner: str,
+    user_id: str,
     session: Session,
     modal: ModalGateway,
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    claim_owner(session, thread_id, owner)
+    claim_owner(session, thread_id, user_id)
     sandbox_id = modal.ensure(thread_id)
     prefix, in_prefix = work_prefix(thread_id), input_prefix(thread_id)
     manifest_raw = minio.get_bytes(manifest_key(thread_id))
@@ -242,13 +242,13 @@ def ensure_session(
 def close_session(
     *,
     thread_id: str,
-    owner: str,
+    user_id: str,
     session: Session,
     modal: ModalGateway,
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    check_owner(session, thread_id, owner, must_exist=True)
+    check_owner(session, thread_id, user_id, must_exist=True)
     checkpoint, entries, skipped = _snapshot_to_minio(thread_id=thread_id, modal=modal, minio=minio)
     _write_manifest(
         thread_id=thread_id,

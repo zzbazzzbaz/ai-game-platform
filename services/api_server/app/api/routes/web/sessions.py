@@ -11,12 +11,12 @@ UPLOAD_CHUNK = 1024 * 256
 
 @router.post("/ensure")
 def ensure(
-    body: EnsureBody, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserIdDep
+    body: EnsureBody, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
 ) -> dict:
     try:
         return session_service.ensure_session(
             thread_id=body.thread_id.strip(),
-            owner=owner,
+            user_id=user_id,
             session=session,
             modal=modal,
             minio=minio,
@@ -31,12 +31,12 @@ def ensure(
 
 @router.post("/{thread_id}/checkpoint")
 def checkpoint(
-    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserIdDep
+    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
 ) -> dict:
     try:
         return session_service.snapshot_session(
             thread_id=thread_id,
-            owner=owner,
+            user_id=user_id,
             session=session,
             modal=modal,
             minio=minio,
@@ -51,12 +51,12 @@ def checkpoint(
 
 @router.post("/{thread_id}/close")
 def close(
-    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserIdDep
+    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
 ) -> dict:
     try:
         return session_service.close_session(
             thread_id=thread_id,
-            owner=owner,
+            user_id=user_id,
             session=session,
             modal=modal,
             minio=minio,
@@ -71,12 +71,12 @@ def close(
 
 @router.post("/{thread_id}/publish")
 def publish(
-    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserIdDep
+    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
 ) -> dict:
     try:
         return publish_service.publish_version(
             thread_id=thread_id,
-            owner=owner,
+            user_id=user_id,
             session=session,
             modal=modal,
             minio=minio,
@@ -90,10 +90,10 @@ def publish(
 
 
 @router.get("/{thread_id}/versions")
-def versions(thread_id: str, session: SessionDep, minio: MinioDep, owner: UserIdDep) -> dict:
+def versions(thread_id: str, session: SessionDep, minio: MinioDep, user_id: UserIdDep) -> dict:
     try:
         items = publish_service.list_versions(
-            thread_id=thread_id, owner=owner, session=session, minio=minio
+            thread_id=thread_id, user_id=user_id, session=session, minio=minio
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
@@ -110,14 +110,14 @@ def upload_input(
     file: UploadFile,
     session: SessionDep,
     minio: MinioDep,
-    owner: UserIdDep,
+    user_id: UserIdDep,
 ) -> dict:
     filename = (file.filename or "").split("/")[-1].split("\\")[-1]
     try:
         data = _read_capped(file)
         return publish_service.store_input(
             thread_id=thread_id,
-            owner=owner,
+            user_id=user_id,
             filename=filename,
             data=data,
             content_type=file.content_type or "application/octet-stream",

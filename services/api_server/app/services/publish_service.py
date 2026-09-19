@@ -174,17 +174,17 @@ def _claim_version(minio: MinioGateway, thread_id: str, html: bytes) -> str:
 def publish_version(
     *,
     thread_id: str,
-    owner: str,
+    user_id: str,
     session: Session,
     modal: ModalGateway,
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    check_owner(session, thread_id, owner, must_exist=True)
+    check_owner(session, thread_id, user_id, must_exist=True)
     with modal.locked(thread_id):
         try:
             snapshot_session(
-                thread_id=thread_id, owner=owner, session=session, modal=modal, minio=minio
+                thread_id=thread_id, user_id=user_id, session=session, modal=modal, minio=minio
             )
         except SandboxMissingError:
             raise ValueError("会话环境不存在，请先创建会话再发布") from None
@@ -199,10 +199,10 @@ def publish_version(
 
 
 def list_versions(
-    *, thread_id: str, owner: str, session: Session, minio: MinioGateway
+    *, thread_id: str, user_id: str, session: Session, minio: MinioGateway
 ) -> list[dict]:
     check_thread_id(thread_id)
-    check_owner(session, thread_id, owner, must_exist=True)
+    check_owner(session, thread_id, user_id, must_exist=True)
     items = minio.list_versions(thread_id)
     return [{"n": i + 1, **v} for i, v in enumerate(items)]
 
@@ -243,7 +243,7 @@ def open_version_stream(*, minio: MinioGateway, thread_id: str, version: str) ->
 def store_input(
     *,
     thread_id: str,
-    owner: str,
+    user_id: str,
     filename: str,
     data: bytes,
     content_type: str,
@@ -251,7 +251,7 @@ def store_input(
     minio: MinioGateway,
 ) -> dict:
     check_thread_id(thread_id)
-    check_owner(session, thread_id, owner, must_exist=True)
+    check_owner(session, thread_id, user_id, must_exist=True)
     check_input_file(filename, len(data))
     minio.put_bytes(input_key(thread_id, filename), data, content_type)
     return {"filename": filename, "size": len(data)}
