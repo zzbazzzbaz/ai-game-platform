@@ -22,6 +22,5 @@
   - 同步模式：路由用 `def`、同步 `Session`，不引入 async/AsyncSession。
   - DTO 归属 `api/schemas/`，不用 `app/schemas/`。
   - 自定义异常 + `api/errors.py` 全局 handler，路由不做 try/except 错误映射。
-  - 对外路径统一挂 `/api/v1`（`core/config.py` 的 `API_V1_PREFIX`）。
 - 错误 `detail` 用中文。
 - 新增 DB 访问先加 repository 方法，再由 service 调用。

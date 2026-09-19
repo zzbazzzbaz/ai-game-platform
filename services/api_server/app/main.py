@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
 from app.api.v1.router import api_router
-from app.core.config import API_V1_PREFIX, Settings, get_settings
+from app.core.config import Settings, get_settings
 from app.lifespan import build_lifespan
 
 
@@ -23,7 +23,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.state.settings = resolved_settings
     register_error_handlers(application)
-    application.include_router(api_router, prefix=API_V1_PREFIX)
+    application.include_router(api_router, prefix="/api/v1")
     return application
 
 
