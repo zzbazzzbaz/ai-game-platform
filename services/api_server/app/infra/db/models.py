@@ -10,6 +10,6 @@ class ThreadOwner(Base):
     __tablename__ = "thread_owners"
 
     thread_id: Mapped[str] = mapped_column(Text, primary_key=True)
-    owner: Mapped[str] = mapped_column(Text, nullable=False)
+    user_id: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False)

@@ -41,14 +41,14 @@ def ensure_table(engine) -> None:
 
 def get_owner(session: Session, thread_id: str) -> str | None:
     row = session.get(ThreadOwner, thread_id)
-    return row.owner if row else None
+    return row.user_id if row else None
 
 
 def claim_owner(session: Session, thread_id: str, user_id: str) -> None:
     now = int(time.time())
     session.execute(
         insert(ThreadOwner)
-        .values(thread_id=thread_id, owner=user_id, created_at=now, updated_at=now)
+        .values(thread_id=thread_id, user_id=user_id, created_at=now, updated_at=now)
         .on_conflict_do_nothing(index_elements=["thread_id"])
     )
     session.commit()
