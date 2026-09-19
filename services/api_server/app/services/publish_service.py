@@ -9,6 +9,7 @@ from html.parser import HTMLParser
 
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import NotFoundError, UpstreamError, ValidationError
 from app.gateways.minio import (
     VERSION_RE,
     MinioGateway,
@@ -39,10 +40,6 @@ STREAM_CHUNK = 1024 * 64
 NODE_CONCURRENCY = 4
 
 _NODE_SEMAPHORE = threading.Semaphore(NODE_CONCURRENCY)
-
-
-class NotFoundError(ValueError):
-    pass
 
 
 class _RefCollector(HTMLParser):
@@ -90,41 +87,41 @@ def _is_inlineable_ref(ref: str) -> bool:
 
 def validate_index_html(html: bytes) -> list[str]:
     if not html:
-        raise ValueError("index.html 为空，无法发布")
+        raise ValidationError("index.html 为空，无法发布")
     if len(html) > MAX_HTML_BYTES:
-        raise ValueError("index.html 超过 2MB，无法发布")
+        raise ValidationError("index.html 超过 2MB，无法发布")
     try:
         text = html.decode("utf-8")
     except UnicodeDecodeError:
-        raise ValueError("index.html 不是合法 UTF-8 编码") from None
+        raise ValidationError("index.html 不是合法 UTF-8 编码") from None
     lowered = text.lower()
     if "<html" not in lowered or "</html>" not in lowered:
-        raise ValueError("index.html 缺少 <html> 结构")
+        raise ValidationError("index.html 缺少 <html> 结构")
     collector = _RefCollector()
     try:
         collector.feed(text)
     except Exception as e:
-        raise ValueError(f"index.html 解析失败：{e}") from e
+        raise ValidationError(f"index.html 解析失败：{e}") from e
     if not collector.has_html:
-        raise ValueError("index.html 缺少 <html> 结构")
+        raise ValidationError("index.html 缺少 <html> 结构")
     if collector.bad_refs:
-        raise ValueError(
+        raise ValidationError(
             "index.html 引用了外部文件，单文件发布不允许：" + "；".join(collector.bad_refs[:5])
         )
     if not collector.has_script:
-        raise ValueError("index.html 缺少 <script>，不是可玩游戏")
+        raise ValidationError("index.html 缺少 <script>，不是可玩游戏")
     scripts = [s for s in (b.strip() for b in collector.scripts) if s]
     if not scripts:
-        raise ValueError("index.html 没有内联游戏代码")
+        raise ValidationError("index.html 没有内联游戏代码")
     if sum(len(s) for s in scripts) > MAX_SCRIPT_BYTES:
-        raise ValueError("内联脚本超过 1MB，无法发布")
+        raise ValidationError("内联脚本超过 1MB，无法发布")
     return scripts
 
 
 def check_scripts_with_node(scripts: list[str]) -> None:
     node = shutil.which("node")
     if node is None:
-        raise RuntimeError("校验环境缺 node，无法发布")
+        raise UpstreamError("校验环境缺 node，无法发布")
     for i, script in enumerate(scripts):
         suffix = ".mjs" if ESM_RE.search(script) else ".js"
         handle, path = tempfile.mkstemp(suffix=suffix)
@@ -139,22 +136,22 @@ def check_scripts_with_node(scripts: list[str]) -> None:
             os.unlink(path)
         if proc.returncode != 0:
             detail = (proc.stderr or proc.stdout).strip().splitlines()
-            raise ValueError(f"第 {i + 1} 段内联脚本语法错误：" + (detail[0] if detail else "未知"))
+            raise ValidationError(f"第 {i + 1} 段内联脚本语法错误：" + (detail[0] if detail else "未知"))
 
 
 def check_input_file(filename: str, size: int) -> None:
     if not FILENAME_RE.match(filename):
-        raise ValueError("文件名非法：只允许字母数字及 _.-，且不能以点开头")
+        raise ValidationError("文件名非法：只允许字母数字及 _.-，且不能以点开头")
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in INPUT_EXTS:
-        raise ValueError("素材只支持图片与文本：png/jpg/gif/webp/svg/txt/md/json/csv")
+        raise ValidationError("素材只支持图片与文本：png/jpg/gif/webp/svg/txt/md/json/csv")
     if size > MAX_INPUT_BYTES:
-        raise ValueError("素材超过 5MB")
+        raise ValidationError("素材超过 5MB")
 
 
 def check_version(version: str) -> None:
     if version != "latest" and not VERSION_RE.match(version):
-        raise ValueError(f"版本非法：{version}")
+        raise ValidationError(f"版本非法：{version}")
 
 
 def _claim_version(minio: MinioGateway, thread_id: str, html: bytes) -> str:
@@ -168,7 +165,7 @@ def _claim_version(minio: MinioGateway, thread_id: str, html: bytes) -> str:
         )
         if claimed:
             return version
-    raise RuntimeError("版本并发冲突过多，请重试")
+    raise UpstreamError("版本并发冲突过多，请重试")
 
 
 def publish_version(
@@ -187,10 +184,10 @@ def publish_version(
                 thread_id=thread_id, user_id=user_id, session=session, modal=modal, minio=minio
             )
         except SandboxMissingError:
-            raise ValueError("会话环境不存在，请先创建会话再发布") from None
+            raise ValidationError("会话环境不存在，请先创建会话再发布") from None
         html = minio.get_bytes(work_key(thread_id, "index.html"))
         if html is None:
-            raise ValueError("工作区还没有 /workspace/work/index.html，生成完成后再发布")
+            raise ValidationError("工作区还没有 /workspace/work/index.html，生成完成后再发布")
         scripts = validate_index_html(html)
         with _NODE_SEMAPHORE:
             check_scripts_with_node(scripts)

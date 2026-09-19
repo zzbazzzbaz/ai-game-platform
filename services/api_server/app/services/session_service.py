@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
 
+from app.core.constants import CHUNK_SIZE, INPUT_ROOT, WORK_ROOT
+from app.core.exceptions import ForbiddenError, ValidationError
 from app.gateways.minio import (
     MinioGateway,
     input_prefix,
@@ -23,15 +25,12 @@ from app.repositories.thread_owner_repository import thread_owner_repository
 THREAD_ID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
-WORK_ROOT = "/workspace/work"
-INPUT_ROOT = "/workspace/input"
 RESTORE_CONCURRENCY = 8
-READ_CHUNK = 1024 * 256
 
 
 def check_thread_id(thread_id: str) -> None:
     if not THREAD_ID_RE.match(thread_id):
-        raise ValueError("thread_id 非法：须为 UUID")
+        raise ValidationError("thread_id 非法：须为 UUID")
 
 
 def get_owner(session: Session, thread_id: str) -> str | None:
@@ -44,18 +43,18 @@ def claim_owner(session: Session, thread_id: str, user_id: str) -> None:
     current = get_owner(session, thread_id)
     if current != user_id:
         if current is None:
-            raise ValueError(f"会话 {thread_id} 不存在")
-        raise PermissionError("无权操作他人会话")
+            raise ValidationError(f"会话 {thread_id} 不存在")
+        raise ForbiddenError("无权操作他人会话")
 
 
 def check_owner(session: Session, thread_id: str, user_id: str, *, must_exist: bool) -> None:
     current = get_owner(session, thread_id)
     if current is None:
         if must_exist:
-            raise ValueError(f"会话 {thread_id} 不存在")
+            raise ValidationError(f"会话 {thread_id} 不存在")
         return
     if current != user_id:
-        raise PermissionError("无权操作他人会话")
+        raise ForbiddenError("无权操作他人会话")
 
 
 def sanitize_rel(rel: str) -> str:
@@ -65,20 +64,20 @@ def sanitize_rel(rel: str) -> str:
         or cleaned.startswith("/")
         or any(s in ("", ".", "..") for s in cleaned.split("/"))
     ):
-        raise ValueError(f"快照路径非法：{rel}")
+        raise ValidationError(f"快照路径非法：{rel}")
     return cleaned
 
 
 def _parse_manifest_files(raw: object) -> dict[str, str | None]:
     if not isinstance(raw, list):
-        raise ValueError("快照 manifest 损坏，无法恢复")
+        raise ValidationError("快照 manifest 损坏，无法恢复")
     parsed: dict[str, str | None] = {}
     for entry in raw:
         if isinstance(entry, str):
             parsed[sanitize_rel(entry)] = None
             continue
         if not isinstance(entry, dict):
-            raise ValueError("快照 manifest 损坏，无法恢复")
+            raise ValidationError("快照 manifest 损坏，无法恢复")
         sha = entry.get("sha256")
         parsed[sanitize_rel(entry["path"])] = sha if isinstance(sha, str) else None
     return parsed
@@ -87,7 +86,7 @@ def _parse_manifest_files(raw: object) -> dict[str, str | None]:
 def sha256_file(path: str) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(READ_CHUNK), b""):
+        for chunk in iter(lambda: handle.read(CHUNK_SIZE), b""):
             digest.update(chunk)
     return digest.hexdigest()
 
@@ -186,8 +185,8 @@ def ensure_session(
     if manifest_raw is not None:
         try:
             manifest_files = _parse_manifest_files(json.loads(manifest_raw).get("files"))
-        except (ValueError, KeyError, AttributeError, TypeError) as e:
-            raise ValueError("快照 manifest 损坏，无法恢复") from e
+        except (ValueError, ValidationError, KeyError, AttributeError, TypeError) as e:
+            raise ValidationError("快照 manifest 损坏，无法恢复") from e
     if manifest_files is None:
         keys = minio.list_keys(prefix)
         manifest_path = manifest_key(thread_id)
@@ -199,9 +198,9 @@ def ensure_session(
     def _fetch(rel: str) -> tuple[str, bytes]:
         data = minio.get_bytes(work_key(thread_id, rel))
         if data is None:
-            raise ValueError(f"快照缺文件无法恢复：{rel}")
+            raise ValidationError(f"快照缺文件无法恢复：{rel}")
         if expected[rel] is not None and hashlib.sha256(data).hexdigest() != expected[rel]:
-            raise ValueError(f"快照校验不一致无法恢复：{rel}")
+            raise ValidationError(f"快照校验不一致无法恢复：{rel}")
         return rel, data
 
     files: dict[str, bytes] = {}

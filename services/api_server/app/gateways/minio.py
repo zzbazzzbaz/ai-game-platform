@@ -5,6 +5,8 @@ import boto3
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 
+from app.core.exceptions import UpstreamError
+
 VERSION_RE = re.compile(r"^(\d{14}(?:_\d+)?)$")
 
 
@@ -66,7 +68,7 @@ class MinioGateway:
         except ClientError as e:
             code = e.response.get("Error", {}).get("Code", "")
             if code not in ("404", "NoSuchBucket", "NotFound"):
-                raise RuntimeError(f"对象存储不可用：{code or e}") from e
+                raise UpstreamError(f"对象存储不可用：{code or e}") from e
             self._client.create_bucket(Bucket=self._bucket)
 
     def put_bytes(self, key: str, data: bytes, content_type: str) -> None:
@@ -75,7 +77,7 @@ class MinioGateway:
                 Bucket=self._bucket, Key=key, Body=data, ContentType=content_type
             )
         except ClientError as e:
-            raise RuntimeError(f"对象存储写入失败：{key}") from e
+            raise UpstreamError(f"对象存储写入失败：{key}") from e
 
     def put_bytes_if_absent(self, key: str, data: bytes, content_type: str) -> bool:
         try:
@@ -90,7 +92,7 @@ class MinioGateway:
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") == "PreconditionFailed":
                 return False
-            raise RuntimeError(f"对象存储写入失败：{key}") from e
+            raise UpstreamError(f"对象存储写入失败：{key}") from e
 
     def put_file(self, key: str, local_path: str, content_type: str) -> None:
         try:
@@ -99,7 +101,7 @@ class MinioGateway:
                     Bucket=self._bucket, Key=key, Body=handle, ContentType=content_type
                 )
         except ClientError as e:
-            raise RuntimeError(f"对象存储写入失败：{key}") from e
+            raise UpstreamError(f"对象存储写入失败：{key}") from e
 
     def get_bytes(self, key: str) -> bytes | None:
         try:
@@ -108,7 +110,7 @@ class MinioGateway:
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "NotFound"):
                 return None
-            raise RuntimeError(f"对象存储读取失败：{key}") from e
+            raise UpstreamError(f"对象存储读取失败：{key}") from e
 
     def open_stream(self, key: str):
         try:
@@ -116,7 +118,7 @@ class MinioGateway:
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "NotFound"):
                 return None
-            raise RuntimeError(f"对象存储读取失败：{key}") from e
+            raise UpstreamError(f"对象存储读取失败：{key}") from e
 
     def list_keys(self, prefix: str) -> list[dict]:
         keys, token = [], None
@@ -127,7 +129,7 @@ class MinioGateway:
             try:
                 resp = self._client.list_objects_v2(**kwargs)
             except ClientError as e:
-                raise RuntimeError(f"对象存储列举失败：{prefix}") from e
+                raise UpstreamError(f"对象存储列举失败：{prefix}") from e
             for item in resp.get("Contents", ()):
                 keys.append({"key": item["Key"], "size": item["Size"]})
             token = resp.get("NextContinuationToken")
@@ -142,7 +144,7 @@ class MinioGateway:
                     Bucket=self._bucket, Delete={"Objects": [{"Key": k} for k in chunk]}
                 )
             except ClientError as e:
-                raise RuntimeError("对象存储删除失败") from e
+                raise UpstreamError("对象存储删除失败") from e
 
     def list_versions(self, thread_id: str) -> list[dict]:
         prefix = threads_prefix(thread_id)

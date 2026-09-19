@@ -8,13 +8,15 @@ from contextlib import contextmanager
 import modal
 from modal.exception import SandboxFilesystemError
 
+from app.core.constants import INPUT_ROOT, WORK_ROOT
+from app.core.exceptions import UpstreamError, ValidationError
+
 SANDBOX_NAME_PREFIX = "game-"
 SANDBOX_TAG_THREAD = "aigame-thread"
-LIST_ROOT = "/workspace/work"
 READY_RETRIES = 10
 
 
-class SandboxMissingError(RuntimeError):
+class SandboxMissingError(UpstreamError):
     pass
 
 
@@ -78,14 +80,14 @@ class ModalGateway:
         last_error = "创建后无响应"
         for _ in range(READY_RETRIES):
             try:
-                code, _, err = self._exec(sandbox, "mkdir -p /workspace/work /workspace/input")
+                code, _, err = self._exec(sandbox, f"mkdir -p {WORK_ROOT} {INPUT_ROOT}")
                 if code == 0:
                     return sandbox
                 last_error = err or f"退出码 {code}"
             except Exception as e:
                 last_error = str(e)
             time.sleep(3)
-        raise RuntimeError(f"sandbox 创建后未就绪：{last_error}")
+        raise UpstreamError(f"sandbox 创建后未就绪：{last_error}")
 
     def _exec(self, sandbox: modal.Sandbox, command: str) -> tuple[int, str, str]:
         process = sandbox.exec("bash", "-c", command, timeout=60)
@@ -114,7 +116,7 @@ class ModalGateway:
         resolved = posixpath.normpath(target)
         if resolved == entry.path:
             return None
-        if resolved != LIST_ROOT and not resolved.startswith(LIST_ROOT + "/"):
+        if resolved != WORK_ROOT and not resolved.startswith(WORK_ROOT + "/"):
             return None
         return resolved
 
@@ -146,16 +148,16 @@ class ModalGateway:
                     skipped.append({"path": entry.path, "reason": "软链越界或目标非文件"})
 
     def _list_files(self, thread_id: str, root: str) -> tuple[list[str], list[dict]]:
-        if posixpath.normpath(root) != LIST_ROOT:
-            raise ValueError(f"只允许列举 {LIST_ROOT}")
+        if posixpath.normpath(root) != WORK_ROOT:
+            raise ValidationError(f"只允许列举 {WORK_ROOT}")
         sandbox = self._require(thread_id)
         try:
             files: list[str] = []
             skipped: list[dict] = []
-            self._walk(sandbox, LIST_ROOT, files, skipped)
+            self._walk(sandbox, WORK_ROOT, files, skipped)
             return sorted(files), skipped
         except SandboxFilesystemError:
-            return [], [{"path": LIST_ROOT, "reason": "列举失败"}]
+            return [], [{"path": WORK_ROOT, "reason": "列举失败"}]
 
     def list_files(self, thread_id: str, root: str) -> tuple[list[str], list[dict]]:
         return self._list_files(thread_id, root)
