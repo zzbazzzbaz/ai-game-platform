@@ -229,14 +229,13 @@ export default function Page() {
   }
   const canChat = !!(token && threadId);
   const playSrc =
-    threadId && selectedVersion && token
+    threadId && selectedVersion
       ? baseOf(backendUrl) +
         "/games/" +
         threadId +
         "/" +
         selectedVersion +
-        "/index.html?token=" +
-        encodeURIComponent(token)
+        "/index.html"
       : "";
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontSize: 14 }}>

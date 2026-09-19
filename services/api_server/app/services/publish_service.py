@@ -207,12 +207,9 @@ def list_versions(
     return [{"n": i + 1, **v} for i, v in enumerate(items)]
 
 
-def resolve_version(
-    *, thread_id: str, owner: str, version: str, session: Session, minio: MinioGateway
-) -> str:
+def resolve_version(*, thread_id: str, version: str, minio: MinioGateway) -> str:
     check_thread_id(thread_id)
     check_version(version)
-    check_owner(session, thread_id, owner, must_exist=True)
     if version == "latest":
         items = minio.list_versions(thread_id)
         if not items:
@@ -221,12 +218,8 @@ def resolve_version(
     return version
 
 
-def get_version_bytes(
-    *, thread_id: str, owner: str, version: str, session: Session, minio: MinioGateway
-) -> bytes:
-    resolved = resolve_version(
-        thread_id=thread_id, owner=owner, version=version, session=session, minio=minio
-    )
+def get_version_bytes(*, thread_id: str, version: str, minio: MinioGateway) -> bytes:
+    resolved = resolve_version(thread_id=thread_id, version=version, minio=minio)
     html = minio.get_bytes(version_key(thread_id, resolved))
     if html is None:
         raise NotFoundError(f"版本 {resolved} 不存在")

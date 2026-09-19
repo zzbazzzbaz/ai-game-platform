@@ -1,15 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 
-from app.api.dependencies import MinioDep, ModalDep, SessionDep, UserDep
+from app.api.dependencies import MinioDep, ModalDep, SessionDep, UserIdDep
 from app.api.schemas.sessions import EnsureBody
-from app.services import session_service
+from app.services import publish_service, session_service
+from app.services.publish_service import MAX_INPUT_BYTES
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+UPLOAD_CHUNK = 1024 * 256
 
 
 @router.post("/ensure")
 def ensure(
-    body: EnsureBody, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
+    body: EnsureBody, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserIdDep
 ) -> dict:
     try:
         return session_service.ensure_session(
@@ -29,7 +31,7 @@ def ensure(
 
 @router.post("/{thread_id}/checkpoint")
 def checkpoint(
-    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
+    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserIdDep
 ) -> dict:
     try:
         return session_service.snapshot_session(
@@ -49,7 +51,7 @@ def checkpoint(
 
 @router.post("/{thread_id}/close")
 def close(
-    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserDep
+    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserIdDep
 ) -> dict:
     try:
         return session_service.close_session(
@@ -65,3 +67,80 @@ def close(
         raise HTTPException(status_code=502, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/{thread_id}/publish")
+def publish(
+    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, owner: UserIdDep
+) -> dict:
+    try:
+        return publish_service.publish_version(
+            thread_id=thread_id,
+            owner=owner,
+            session=session,
+            modal=modal,
+            minio=minio,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/{thread_id}/versions")
+def versions(thread_id: str, session: SessionDep, minio: MinioDep, owner: UserIdDep) -> dict:
+    try:
+        items = publish_service.list_versions(
+            thread_id=thread_id, owner=owner, session=session, minio=minio
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"versions": items}
+
+
+@router.post("/{thread_id}/input")
+def upload_input(
+    thread_id: str,
+    file: UploadFile,
+    session: SessionDep,
+    minio: MinioDep,
+    owner: UserIdDep,
+) -> dict:
+    filename = (file.filename or "").split("/")[-1].split("\\")[-1]
+    try:
+        data = _read_capped(file)
+        return publish_service.store_input(
+            thread_id=thread_id,
+            owner=owner,
+            filename=filename,
+            data=data,
+            content_type=file.content_type or "application/octet-stream",
+            session=session,
+            minio=minio,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+def _read_capped(file: UploadFile) -> bytes:
+    if file.size is not None and file.size > MAX_INPUT_BYTES:
+        raise ValueError("素材超过 5MB")
+    chunks, total = [], 0
+    while True:
+        chunk = file.file.read(UPLOAD_CHUNK)
+        if not chunk:
+            return b"".join(chunks)
+        total += len(chunk)
+        if total > MAX_INPUT_BYTES:
+            raise ValueError("素材超过 5MB")
+        chunks.append(chunk)
