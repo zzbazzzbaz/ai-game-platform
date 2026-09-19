@@ -5,7 +5,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from app.api.dependencies import UserIdDep
 from app.settings import Settings
 
-router = APIRouter(prefix="/internal", tags=["internal"])
+router = APIRouter(tags=["callback"])
 
 
 @router.get("/verify")
