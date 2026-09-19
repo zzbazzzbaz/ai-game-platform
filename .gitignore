@@ -3,6 +3,7 @@ docs/test/
 docs/agent-chat-ui/
 docs/test-frontend/node_modules/
 docs/test-frontend/.next/
+docs/test-frontend/tsconfig.tsbuildinfo
 services/.env
 services/agent_server/.langgraph_api/
 opencode.json
