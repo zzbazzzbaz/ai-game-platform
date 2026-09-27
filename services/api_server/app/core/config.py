@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     auth_secret: str
     auth_internal_token: str
     auth_token_ttl_seconds: int
+    public_game_base_url: str
     cors_origins: str
 
     @property

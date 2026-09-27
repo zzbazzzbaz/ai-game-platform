@@ -3,6 +3,7 @@ import re
 WORK_ROOT = "/workspace/work"
 INPUT_ROOT = "/workspace/input"
 WORK_INDEX_FILE = "index.html"
+WORK_DIST_INDEX = "dist/index.html"
 
 FILE_CHUNK_SIZE = 256 * 1024
 STREAM_CHUNK_SIZE = 64 * 1024
@@ -21,7 +22,7 @@ VERSION_MAX_ATTEMPTS = 100
 VERSION_PATTERN = re.compile(r"^(\d{14}(?:_\d+)?)$")
 
 MAX_HTML_BYTES = 2 * 1024 * 1024
-MAX_SCRIPT_BYTES = 1024 * 1024
+MAX_SCRIPT_BYTES = 2 * 1024 * 1024
 MAX_INPUT_BYTES = 5 * 1024 * 1024
 NODE_CHECK_TIMEOUT_SECONDS = 60
 

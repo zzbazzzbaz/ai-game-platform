@@ -36,6 +36,10 @@ def version_key(thread_id: str, version: str) -> str:
     return f"threads/{thread_id}/{version}/{WORK_INDEX_FILE}"
 
 
+def game_key(thread_id: str) -> str:
+    return f"games/{thread_id}/{WORK_INDEX_FILE}"
+
+
 def utc_timestamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%d%H%M%S")
 

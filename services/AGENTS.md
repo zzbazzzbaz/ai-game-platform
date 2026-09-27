@@ -14,5 +14,6 @@
   - 沙箱命名 `game-{thread_id}`、标签 `aigame-thread`
   - 镜像名 `game-runner` + 环境变量 `MODAL_IMAGE_TAG`
   - 沙箱内路径：`/workspace/{work,input}`、`/skills`、`/opt/deps`
+  - 发布接口 `POST /api/v1/internal/games/publish`；产物 key `games/{thread_id}/index.html`
 - 沙箱资产（Phaser skills、工程骨架）只放 `sandbox/assets/`；运行期由 api_server 以命名镜像引用，不做运行时同步
 - 沙箱内目录架构见 `sandbox/build.py` 顶部注释；变更须与两服务常量同步
