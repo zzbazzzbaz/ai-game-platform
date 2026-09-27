@@ -41,6 +41,7 @@ def internal_publish_game(
     return game_service.publish_game(
         thread_id=body.thread_id.strip(),
         user_id=body.user_id,
+        name=body.name,
         session=session,
         modal=modal,
         minio=minio,

@@ -5,6 +5,8 @@ INPUT_ROOT = "/workspace/input"
 WORK_INDEX_FILE = "index.html"
 WORK_DIST_INDEX = "dist/index.html"
 
+GAME_TYPE_SINGLE = "single"
+
 FILE_CHUNK_SIZE = 256 * 1024
 STREAM_CHUNK_SIZE = 64 * 1024
 RESTORE_CONCURRENCY = 8
