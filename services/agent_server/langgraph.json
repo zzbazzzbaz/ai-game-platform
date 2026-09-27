@@ -1,7 +1,7 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "single_player": "./agent/agent.py:build_single_player_agent"
+    "single": "./agent/agent.py:build_single_agent"
   },
   "env": "../.env",
   "auth": {

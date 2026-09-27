@@ -2,19 +2,23 @@ import httpx
 from langchain_core.tools import BaseTool
 from langchain_core.tools import tool as make_tool
 
-from agent.core.constants import MOCK_USER_ID, PUBLISH_GAME_PATH, PUBLISH_TIMEOUT_SECONDS
+from agent.core.constants import (
+    MOCK_USER_ID,
+    PUBLISH_SINGLE_GAME_PATH,
+    PUBLISH_TIMEOUT_SECONDS,
+)
 
 
-def make_publish_game_tool(
+def make_publish_single_game_tool(
     *,
     thread_id: str,
     api_internal_url: str,
     internal_token: str,
 ) -> BaseTool:
-    """构造 publish_game 工具：Agent 只发发布请求，落桶与校验由 api_server 完成。"""
+    """构造 publish_single_game 工具：Agent 只发发布请求，落桶与校验由 api_server 完成。"""
 
     @make_tool
-    def publish_game(name: str = "") -> str:
+    def publish_single_game(name: str = "") -> str:
         """把当前游戏发布到平台，返回公网可玩链接。
 
         发布前必须先在工作区执行 `npm run build` 生成 dist/index.html。
@@ -22,7 +26,7 @@ def make_publish_game_tool(
         """
         try:
             response = httpx.post(
-                f"{api_internal_url}{PUBLISH_GAME_PATH}",
+                f"{api_internal_url}{PUBLISH_SINGLE_GAME_PATH}",
                 headers={"X-Internal-Token": internal_token},
                 json={"thread_id": thread_id, "user_id": MOCK_USER_ID, "name": name},
                 timeout=PUBLISH_TIMEOUT_SECONDS,
@@ -38,4 +42,4 @@ def make_publish_game_tool(
             detail = response.text
         return f"发布失败（{response.status_code}）：{detail}"
 
-    return publish_game
+    return publish_single_game

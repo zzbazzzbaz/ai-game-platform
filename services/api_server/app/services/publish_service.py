@@ -89,9 +89,7 @@ def validate_index_html(html: bytes) -> list[str]:
     if not scripts:
         raise ValidationError("index.html 没有内联游戏代码")
     if sum(len(s) for s in scripts) > MAX_SCRIPT_BYTES:
-        raise ValidationError(
-            f"内联脚本超过 {MAX_SCRIPT_BYTES // (1024 * 1024)}MB，无法发布"
-        )
+        raise ValidationError(f"内联脚本超过 {MAX_SCRIPT_BYTES // (1024 * 1024)}MB，无法发布")
     return scripts
 
 

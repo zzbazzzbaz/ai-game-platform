@@ -8,7 +8,7 @@ import modal
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "assets"
 SKILLS_DIR = ASSETS / "skills"
-TEMPLATE_DIR = ASSETS / "templates" / "single-player"
+TEMPLATE_DIR = ASSETS / "templates" / "single"
 
 IMAGE_NAME = "game-runner"
 BUILDER_APP_NAME = "game-runner-builder"

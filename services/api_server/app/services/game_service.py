@@ -19,7 +19,7 @@ from app.services.publish_service import validate_index_html
 from app.services.session_service import check_thread_id
 
 
-def publish_game(
+def publish_single_game(
     *,
     thread_id: str,
     user_id: str,

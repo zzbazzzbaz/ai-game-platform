@@ -4,7 +4,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.api.dependencies import MinioDep, ModalDep, SessionDep, UserIdDep
 from app.api.schemas.auth import VerifyResponse
-from app.api.schemas.games import PublishGameBody, PublishGameResponse
+from app.api.schemas.games import PublishSingleGameBody, PublishSingleGameResponse
 from app.core.config import Settings
 from app.services import game_service
 
@@ -27,9 +27,9 @@ def internal_verify(
     return VerifyResponse(user_id=user_id)
 
 
-@router.post("/games/publish", response_model=PublishGameResponse)
-def internal_publish_game(
-    body: PublishGameBody,
+@router.post("/games/single/publish", response_model=PublishSingleGameResponse)
+def internal_publish_single_game(
+    body: PublishSingleGameBody,
     request: Request,
     session: SessionDep,
     modal: ModalDep,
@@ -38,7 +38,7 @@ def internal_publish_game(
 ) -> dict:
     _check_internal_token(request, x_internal_token)
     settings: Settings = request.app.state.settings
-    return game_service.publish_game(
+    return game_service.publish_single_game(
         thread_id=body.thread_id.strip(),
         user_id=body.user_id,
         name=body.name,

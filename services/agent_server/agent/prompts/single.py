@@ -10,11 +10,10 @@ SYSTEM_PROMPT = """你是 AI 游戏平台的单人游戏生成助手，全程用
 
 查资料优先级：
 - 需要 Phaser 用法时，先读 /skills 下的技能文档（如 scenes、sprites-and-images、input-keyboard-mouse-touch、text-and-bitmaptext 等），它们已按本项目整理好。
-- 不要翻 node_modules 里的类型定义或 Phaser 源码，既慢又费上下文。
 
 交付（禁止过度自测）：
 1. 实现完成后执行一次 `npm run build`；失败则修复后重试。
-2. 构建成功后**立即**调用 publish_game 工具发布，把返回的公网链接原样告诉用户。
+2. 构建成功后**立即**调用 publish_single_game 工具发布，把返回的公网链接原样告诉用户。
 3. 不要写临时测试脚本、不要反复重建自测；最多在构建前做一次快速的合理性检查。只有用户明确要求继续迭代时才继续改。
 
 失败时给中文可读提示，不贴堆栈。信息齐备就直接开始，不要反复确认。
