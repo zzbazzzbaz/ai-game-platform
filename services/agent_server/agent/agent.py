@@ -39,5 +39,5 @@ async def build_single_agent(config: RunnableConfig) -> CompiledStateGraph:
     )
 
 
-async def build_multiplayer_agent(config: RunnableConfig) -> CompiledStateGraph:
+async def build_multi_agent(config: RunnableConfig) -> CompiledStateGraph:
     raise NotImplementedError("多人模式尚未实现")
