@@ -8,6 +8,11 @@ services/agent_server/.langgraph_api/
 opencode.json
 # macOS
 .DS_Store
+# Python
 __pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
 # IDE
 .idea/

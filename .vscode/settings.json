@@ -1,0 +1,24 @@
+{
+  // 隐藏构建/运行时产物，避免资源管理器与全局搜索被噪音淹没。
+  // 这些路径均未被 git 跟踪；如需临时查看，注释掉对应条目即可。
+  "files.exclude": {
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.ruff_cache": true,
+    "**/.pytest_cache": true,
+    "**/.langgraph_api": true,
+    "**/node_modules": true,
+    "**/.idea": true,
+    "**/.DS_Store": true
+  },
+  "search.exclude": {
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/.ruff_cache": true,
+    "**/.pytest_cache": true,
+    "**/.langgraph_api": true,
+    "**/node_modules": true,
+    "**/.idea": true
+  }
+}
