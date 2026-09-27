@@ -1,12 +1,3 @@
-"""构建并发布沙箱镜像 game-runner。
-
-镜像内容：Node LTS + Playwright/Chromium + Phaser 技能库 + 单人游戏工程骨架。
-运行期由 api_server 以 Image.from_name("game-runner:<tag>") 引用。
-
-用法：
-    uv run python build.py --tag latest --tag "$(git rev-parse --short HEAD)"
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -27,6 +18,21 @@ SKILLS_MOUNT = "/skills"
 DEPS_ROOT = "/opt/deps"
 WORK_ROOT = "/workspace/work"
 INPUT_ROOT = "/workspace/input"
+
+# ---------------------------------------------------------------------------
+# 沙箱内目录架构（契约）
+#
+#   /skills/                  Phaser 技能库；deepagents 读 /skills/*/SKILL.md
+#   /opt/deps/                npm ci 安装的可复现依赖（输入 package.json + package-lock.json）
+#   /workspace/input/         用户素材，只读
+#   /workspace/work/          游戏工程，唯一可写区
+#   └── node_modules -> /opt/deps/node_modules
+#                             软链；不可做成真实目录（否则快照会把整份依赖上传 MinIO），
+#                             且目标必须在 WORK_ROOT 之外（ModalGateway._walk 才会跳过）
+#
+# api_server / agent_server 常量按上述路径写死，改名即破坏跨服务契约；
+# 改本文件或 assets/** 后需重建镜像，已存在的沙箱不会热更新。
+# ---------------------------------------------------------------------------
 
 # 这些是本地/运行时产物，不进镜像
 _IGNORED_NAMES = frozenset({"node_modules", "dist", ".runtime"})
