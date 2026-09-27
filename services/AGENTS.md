@@ -18,3 +18,4 @@
   - 发布接口 `POST /api/v1/internal/games/single/publish`；产物 key `games/{thread_id}/index.html`
 - 沙箱资产（Phaser skills、工程骨架）只放 `sandbox/assets/`；运行期由 api_server 以命名镜像引用，不做运行时同步
 - 沙箱内目录架构见 `sandbox/build.py` 顶部注释；变更须与两服务常量同步
+- TODO(多人模式)：沙箱镜像暂不分单/多人（线程不带模式，建沙箱时无从区分）；分模式的前置与两条备选方案见 `sandbox/build.py` 顶部注释
