@@ -40,7 +40,10 @@ async function main() {
   if (!ENTRY_TAG.test(shell)) {
     throw new Error('index.html 缺少 <script src="./src/main.js"> 入口标签');
   }
-  const html = shell.replace(ENTRY_TAG, `<script>${js}</script>`);
+  // 转义 </script，避免包内字符串提前闭合内联脚本
+  const safeJs = js.replace(/<\/script/gi, '<\\/script');
+  // 用函数替换器：替换串中的 $& / $` 等不会被当成特殊模式
+  const html = shell.replace(ENTRY_TAG, () => `<script>${safeJs}</script>`);
 
   await mkdir(join(root, 'dist'), { recursive: true });
   await writeFile(join(root, 'dist/index.html'), html);
