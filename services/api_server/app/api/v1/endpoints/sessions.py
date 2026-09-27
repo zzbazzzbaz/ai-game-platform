@@ -6,8 +6,6 @@ from app.api.schemas.sessions import (
     EnsureBody,
     EnsureResponse,
     InputResponse,
-    PublishResponse,
-    VersionsResponse,
 )
 from app.core.constants import BINARY_MEDIA_TYPE, FILE_CHUNK_SIZE, MAX_INPUT_BYTES
 from app.core.exceptions import ValidationError
@@ -53,27 +51,6 @@ def close(
         modal=modal,
         minio=minio,
     )
-
-
-@router.post("/{thread_id}/publish", response_model=PublishResponse)
-def publish(
-    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
-) -> dict:
-    return publish_service.publish_version(
-        thread_id=thread_id,
-        user_id=user_id,
-        session=session,
-        modal=modal,
-        minio=minio,
-    )
-
-
-@router.get("/{thread_id}/versions", response_model=VersionsResponse)
-def versions(thread_id: str, session: SessionDep, minio: MinioDep, user_id: UserIdDep) -> dict:
-    items = publish_service.list_versions(
-        thread_id=thread_id, user_id=user_id, session=session, minio=minio
-    )
-    return {"versions": items}
 
 
 @router.post("/{thread_id}/input", response_model=InputResponse)

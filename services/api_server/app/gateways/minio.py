@@ -4,12 +4,8 @@ import boto3
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 
-from app.core.constants import VERSION_PATTERN, WORK_INDEX_FILE
+from app.core.constants import WORK_INDEX_FILE
 from app.core.exceptions import UpstreamError
-
-
-def threads_prefix(thread_id: str) -> str:
-    return f"threads/{thread_id}/"
 
 
 def work_prefix(thread_id: str) -> str:
@@ -30,10 +26,6 @@ def input_prefix(thread_id: str) -> str:
 
 def input_key(thread_id: str, filename: str) -> str:
     return f"threads/{thread_id}/input/{filename}"
-
-
-def version_key(thread_id: str, version: str) -> str:
-    return f"threads/{thread_id}/{version}/{WORK_INDEX_FILE}"
 
 
 def game_key(thread_id: str) -> str:
@@ -147,14 +139,3 @@ class MinioGateway:
                 )
             except ClientError as e:
                 raise UpstreamError("对象存储删除失败") from e
-
-    def list_versions(self, thread_id: str) -> list[dict]:
-        prefix = threads_prefix(thread_id)
-        versions = []
-        for item in self.list_keys(prefix):
-            rest = item["key"][len(prefix) :]
-            parts = rest.split("/")
-            if len(parts) == 2 and parts[1] == WORK_INDEX_FILE and VERSION_PATTERN.match(parts[0]):
-                versions.append({"version": parts[0], "size": item["size"]})
-        versions.sort(key=lambda v: v["version"])
-        return versions

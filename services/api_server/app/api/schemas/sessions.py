@@ -18,22 +18,6 @@ class CheckpointResponse(BaseModel):
     files: int
 
 
-class PublishResponse(BaseModel):
-    thread_id: str
-    version: str
-    size: int
-
-
-class VersionItem(BaseModel):
-    n: int
-    version: str
-    size: int
-
-
-class VersionsResponse(BaseModel):
-    versions: list[VersionItem]
-
-
 class InputResponse(BaseModel):
     filename: str
     size: int
