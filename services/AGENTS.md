@@ -10,6 +10,7 @@
 
 - 配置全读环境变量,禁写死,无默认值,缺失fail-fast
 - 本地改必同步生产:`.env`→`deploy/.env.example`,`docker-compose-local.yml`→`deploy/docker-compose.yml`
+- Python 版本由各服务目录自己的 `.python-version` 固定（当前均 `3.14.4`，三份必须保持一致）；三服务 `requires-python` 同样必须一致为 `>=3.14,<3.15`，不再另写 pin
 - 跨服务契约（改动必须同步，见 `api_server/app/core/constants.py`、`agent_server/agent/core/constants.py`、`sandbox/build.py`）：
   - 沙箱命名 `game-{thread_id}`、标签 `aigame-thread`
   - 镜像名 `game-runner` + 环境变量 `MODAL_IMAGE_TAG`
