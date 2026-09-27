@@ -1,6 +1,6 @@
-.PHONY: up down install run-api run-agent run-web sandbox-image
+.PHONY: up down install run-api run-agent run-web
 
-SANDBOX_TAG ?= latest
+ENV_FILE := $(CURDIR)/services/.env
 
 up:
 	docker compose -f services/docker-compose-local.yml up -d
@@ -14,15 +14,12 @@ install:
 	cd services/sandbox && uv sync --frozen
 	cd docs/test-frontend && npm install
 
+# 服务跑在宿主机、PG 跑在容器，端口已发布，故覆盖容器主机名
 run-api:
-	set -a && . services/.env && POSTGRES_HOST=localhost uv run --frozen --directory services/api_server fastapi run --port 8000 --workers 1
+	POSTGRES_HOST=localhost uv run --frozen --directory services/api_server --env-file $(ENV_FILE) fastapi run --port 8000 --workers 1
 
 run-agent:
-	cd services/agent_server && API_INTERNAL_URL=http://localhost:8000 uv run --frozen langgraph dev --no-reload
+	uv run --frozen --directory services/agent_server --env-file $(ENV_FILE) langgraph dev --no-reload
 
 run-web:
 	cd docs/test-frontend && npm run dev
-
-# 构建并发布沙箱镜像（skills + 工程骨架 + 工具链）到 Modal
-sandbox-image:
-	set -a && . services/.env && uv run --directory services/sandbox --frozen python build.py --tag $(SANDBOX_TAG)
