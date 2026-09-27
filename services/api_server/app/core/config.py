@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     modal_token_id: str
     modal_token_secret: str
     modal_app: str
+    modal_image_tag: str
     modal_idle_timeout_seconds: int
     modal_timeout_seconds: int
     auth_secret: str

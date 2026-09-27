@@ -1,0 +1,35 @@
+name: sandbox-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/sandbox/**"
+      - ".github/workflows/sandbox-image.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: sandbox-image
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: services/sandbox
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build and publish image
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          uv sync --frozen
+          uv run --frozen python build.py --tag latest --tag "${GITHUB_SHA::12}"

@@ -11,6 +11,7 @@ from modal.exception import SandboxFilesystemError
 from app.core.constants import (
     INPUT_ROOT,
     SANDBOX_EXEC_TIMEOUT_SECONDS,
+    SANDBOX_IMAGE_NAME,
     SANDBOX_NAME_PREFIX,
     SANDBOX_READY_INTERVAL_SECONDS,
     SANDBOX_READY_RETRIES,
@@ -25,8 +26,9 @@ class SandboxMissingError(UpstreamError):
 
 
 class ModalGateway:
-    def __init__(self, *, app_name: str, idle_timeout: int, timeout: int) -> None:
+    def __init__(self, *, app_name: str, image_tag: str, idle_timeout: int, timeout: int) -> None:
         self._app_name = app_name
+        self._image_tag = image_tag
         self._idle_timeout = idle_timeout
         self._timeout = timeout
         self._locks: dict[str, threading.Lock] = {}
@@ -78,13 +80,14 @@ class ModalGateway:
             app=app,
             name=f"{SANDBOX_NAME_PREFIX}{thread_id}",
             tags={SANDBOX_TAG_THREAD: thread_id},
+            image=modal.Image.from_name(f"{SANDBOX_IMAGE_NAME}:{self._image_tag}"),
             idle_timeout=self._idle_timeout,
             timeout=self._timeout,
         )
         last_error = "创建后无响应"
         for _ in range(SANDBOX_READY_RETRIES):
             try:
-                code, _, err = self._exec(sandbox, f"mkdir -p {WORK_ROOT} {INPUT_ROOT}")
+                code, _, err = self._exec(sandbox, f"test -d {WORK_ROOT} && test -d {INPUT_ROOT}")
                 if code == 0:
                     return sandbox
                 last_error = err or f"退出码 {code}"

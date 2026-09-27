@@ -26,6 +26,7 @@ def build_lifespan(settings: Settings):
         application.state.minio = minio
         application.state.modal = ModalGateway(
             app_name=settings.modal_app,
+            image_tag=settings.modal_image_tag,
             idle_timeout=settings.modal_idle_timeout_seconds,
             timeout=settings.modal_timeout_seconds,
         )
