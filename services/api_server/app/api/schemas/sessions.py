@@ -12,10 +12,12 @@ class EnsureResponse(BaseModel):
     manifest_match: bool
 
 
-class CheckpointResponse(BaseModel):
+class SnapshotResponse(BaseModel):
     thread_id: str
     checkpoint: str
     files: int
+    uploaded: int
+    deleted: int
 
 
 class InputResponse(BaseModel):

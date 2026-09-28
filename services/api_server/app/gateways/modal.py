@@ -1,5 +1,6 @@
 import os
 import posixpath
+import shlex
 import threading
 import time
 from collections.abc import Iterator
@@ -11,6 +12,7 @@ from modal.exception import SandboxFilesystemError
 from app.core.constants import (
     INPUT_ROOT,
     SANDBOX_EXEC_TIMEOUT_SECONDS,
+    SANDBOX_HASH_BATCH_SIZE,
     SANDBOX_IMAGE_NAME,
     SANDBOX_NAME_PREFIX,
     SANDBOX_READY_INTERVAL_SECONDS,
@@ -183,6 +185,31 @@ class ModalGateway:
             else:
                 local_paths.append(local_path)
         return local_paths
+
+    def hash_files(self, thread_id: str, paths: list[str]) -> dict[str, str]:
+        """在沙箱内计算文件 sha256，返回 {绝对路径: 摘要}；无法计算的文件不返回。"""
+        if not paths:
+            return {}
+        sandbox = self._require(thread_id)
+        digests: dict[str, str] = {}
+        for start in range(0, len(paths), SANDBOX_HASH_BATCH_SIZE):
+            batch = paths[start : start + SANDBOX_HASH_BATCH_SIZE]
+            rels = [posixpath.relpath(path, WORK_ROOT) for path in batch]
+            command = f"cd {shlex.quote(WORK_ROOT)} && sha256sum -- " + " ".join(
+                shlex.quote(rel) for rel in rels
+            )
+            try:
+                code, output, _ = self._exec(sandbox, command)
+            except Exception:
+                continue
+            if code != 0:
+                continue
+            for line in output.splitlines():
+                digest, separator, name = line.partition("  ")
+                if not separator or not digest:
+                    continue
+                digests[posixpath.join(WORK_ROOT, name.lstrip("\\"))] = digest
+        return digests
 
     def upload(self, thread_id: str, files: dict[str, bytes]) -> None:
         with self.locked(thread_id):

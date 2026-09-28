@@ -2,7 +2,6 @@ from fastapi import APIRouter, UploadFile
 
 from app.api.dependencies import MinioDep, ModalDep, SessionDep, UserIdDep
 from app.api.schemas.sessions import (
-    CheckpointResponse,
     EnsureBody,
     EnsureResponse,
     InputResponse,
@@ -20,32 +19,6 @@ def ensure(
 ) -> dict:
     return session_service.ensure_session(
         thread_id=body.thread_id.strip(),
-        user_id=user_id,
-        session=session,
-        modal=modal,
-        minio=minio,
-    )
-
-
-@router.post("/{thread_id}/checkpoint", response_model=CheckpointResponse)
-def checkpoint(
-    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
-) -> dict:
-    return session_service.snapshot_session(
-        thread_id=thread_id,
-        user_id=user_id,
-        session=session,
-        modal=modal,
-        minio=minio,
-    )
-
-
-@router.post("/{thread_id}/close", response_model=CheckpointResponse)
-def close(
-    thread_id: str, session: SessionDep, modal: ModalDep, minio: MinioDep, user_id: UserIdDep
-) -> dict:
-    return session_service.close_session(
-        thread_id=thread_id,
         user_id=user_id,
         session=session,
         modal=modal,

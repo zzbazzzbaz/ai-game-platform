@@ -5,8 +5,9 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from app.api.dependencies import MinioDep, ModalDep, SessionDep, UserIdDep
 from app.api.schemas.auth import VerifyResponse
 from app.api.schemas.games import PublishSingleGameBody, PublishSingleGameResponse
+from app.api.schemas.sessions import SnapshotResponse
 from app.core.config import Settings
-from app.services import game_service
+from app.services import game_service, session_service
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -47,3 +48,16 @@ def internal_publish_single_game(
         minio=minio,
         public_base_url=settings.public_game_base_url,
     )
+
+
+@router.post("/sessions/{thread_id}/snapshot", response_model=SnapshotResponse)
+def internal_session_snapshot(
+    thread_id: str,
+    request: Request,
+    modal: ModalDep,
+    minio: MinioDep,
+    x_internal_token: str = Header(default=""),
+) -> dict:
+    """run 结束后由 agent_server 触发的自动快照（增量 + 删除对账）。"""
+    _check_internal_token(request, x_internal_token)
+    return session_service.auto_snapshot(thread_id=thread_id, modal=modal, minio=minio)

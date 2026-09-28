@@ -3,7 +3,6 @@ import json
 import os
 import posixpath
 import tempfile
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
@@ -14,10 +13,11 @@ from app.core.constants import (
     INPUT_ROOT,
     JSON_MEDIA_TYPE,
     RESTORE_CONCURRENCY,
+    SNAPSHOT_EXCLUDED_TOP,
     THREAD_ID_PATTERN,
     WORK_ROOT,
 )
-from app.core.exceptions import ForbiddenError, ValidationError
+from app.core.exceptions import ForbiddenError, UpstreamError, ValidationError
 from app.gateways.minio import (
     MinioGateway,
     input_prefix,
@@ -99,17 +99,66 @@ def _inspect_local(local_path: str) -> tuple[bool, int]:
     return True, os.path.getsize(local_path)
 
 
+def _work_rel(remote_path: str) -> str:
+    return sanitize_rel(remote_path[len(WORK_ROOT) + 1 :])
+
+
+def _load_prev_entries(*, thread_id: str, minio: MinioGateway) -> dict[str, dict]:
+    """读取上一次快照的 manifest，返回 {相对路径: 条目}；缺失或损坏时返回空。"""
+    raw = minio.get_bytes(manifest_key(thread_id))
+    if raw is None:
+        return {}
+    try:
+        files = json.loads(raw).get("files")
+    except ValueError, AttributeError:
+        return {}
+    if not isinstance(files, list):
+        return {}
+    previous: dict[str, dict] = {}
+    for entry in files:
+        if not isinstance(entry, dict):
+            continue
+        path, size, sha = entry.get("path"), entry.get("size"), entry.get("sha256")
+        if isinstance(path, str) and isinstance(size, int) and isinstance(sha, str):
+            previous[path] = {"path": path, "size": size, "sha256": sha}
+    return previous
+
+
+def _reconcile_work_keys(*, thread_id: str, rels: set[str], minio: MinioGateway) -> int:
+    """删除 MinIO 中工作区已不存在的对象，返回删除数量。"""
+    keep = {manifest_key(thread_id)} | {work_key(thread_id, rel) for rel in rels}
+    stale = [
+        item["key"] for item in minio.list_keys(work_prefix(thread_id)) if item["key"] not in keep
+    ]
+    if stale:
+        minio.delete_keys(stale)
+    return len(stale)
+
+
 def _snapshot_to_minio(
     *, thread_id: str, modal: ModalGateway, minio: MinioGateway
-) -> tuple[str, list[dict], list[dict]]:
+) -> tuple[str, list[dict], list[dict], int, int]:
+    """增量上传工作区并做删除对账，返回 (checkpoint, 条目, 跳过, 上传数, 删除数)。"""
     remote, skipped = modal.list_files(thread_id, WORK_ROOT)
+    if any(entry.get("path") == WORK_ROOT for entry in skipped):
+        raise UpstreamError("工作区列举失败，已跳过本次快照")
+    current = [
+        path for path in remote if _work_rel(path).split("/", 1)[0] not in SNAPSHOT_EXCLUDED_TOP
+    ]
     checkpoint = utc_timestamp()
-    entries: list[dict] = []
-    if not remote:
-        return checkpoint, entries, skipped
+    previous = _load_prev_entries(thread_id=thread_id, minio=minio)
+    rels = {path: _work_rel(path) for path in current}
+    digests = modal.hash_files(thread_id, current)
+    changed = [
+        path for path in current if digests.get(path) != previous.get(rels[path], {}).get("sha256")
+    ]
+    changed_set = set(changed)
+    entries: list[dict] = [previous[rels[path]] for path in current if path not in changed_set]
+    uploaded = 0
     with tempfile.TemporaryDirectory(prefix="snapshot-") as tmpdir:
-        local_paths = modal.download_to_local(thread_id, remote, tmpdir)
-        for remote_path, local_path in zip(remote, local_paths, strict=True):
+        local_paths = modal.download_to_local(thread_id, changed, tmpdir)
+        for remote_path, local_path in zip(changed, local_paths, strict=True):
+            rel = rels[remote_path]
             if local_path is None:
                 skipped.append({"path": remote_path, "reason": "下载失败或非普通文件"})
                 continue
@@ -117,16 +166,11 @@ def _snapshot_to_minio(
             if not ok:
                 skipped.append({"path": remote_path, "reason": "下载失败或非普通文件"})
                 continue
-            rel = sanitize_rel(remote_path[len(WORK_ROOT) + 1 :])
             minio.put_file(work_key(thread_id, rel), local_path, BINARY_MEDIA_TYPE)
-            entries.append(
-                {
-                    "path": rel,
-                    "size": size,
-                    "sha256": sha256_file(local_path),
-                }
-            )
-    return checkpoint, entries, skipped
+            entries.append({"path": rel, "size": size, "sha256": sha256_file(local_path)})
+            uploaded += 1
+    deleted = _reconcile_work_keys(thread_id=thread_id, rels=set(rels.values()), minio=minio)
+    return checkpoint, entries, skipped, uploaded, deleted
 
 
 def _write_manifest(
@@ -136,38 +180,38 @@ def _write_manifest(
     entries: list[dict],
     skipped: list[dict],
     minio: MinioGateway,
-    closed: bool,
 ) -> None:
     manifest = {
         "thread_id": thread_id,
         "checkpoint": checkpoint,
-        "closed_at": int(time.time()) if closed else None,
+        "closed_at": None,
         "files": sorted(entries, key=lambda e: e["path"]),
         "skipped": skipped,
     }
     minio.put_bytes(manifest_key(thread_id), json.dumps(manifest).encode(), JSON_MEDIA_TYPE)
 
 
-def snapshot_session(
-    *,
-    thread_id: str,
-    user_id: str,
-    session: Session,
-    modal: ModalGateway,
-    minio: MinioGateway,
-) -> dict:
-    check_thread_id(thread_id)
-    check_owner(session, thread_id, user_id, must_exist=True)
-    checkpoint, entries, skipped = _snapshot_to_minio(thread_id=thread_id, modal=modal, minio=minio)
-    _write_manifest(
-        thread_id=thread_id,
-        checkpoint=checkpoint,
-        entries=entries,
-        skipped=skipped,
-        minio=minio,
-        closed=False,
+def write_work_snapshot(*, thread_id: str, modal: ModalGateway, minio: MinioGateway) -> dict:
+    """把工作区同步到 MinIO（增量 + 删除对账）；调用方需持有 `modal.locked(thread_id)`。"""
+    checkpoint, entries, skipped, uploaded, deleted = _snapshot_to_minio(
+        thread_id=thread_id, modal=modal, minio=minio
     )
-    return {"thread_id": thread_id, "checkpoint": checkpoint, "files": len(entries)}
+    _write_manifest(
+        thread_id=thread_id, checkpoint=checkpoint, entries=entries, skipped=skipped, minio=minio
+    )
+    return {
+        "thread_id": thread_id,
+        "checkpoint": checkpoint,
+        "files": len(entries),
+        "uploaded": uploaded,
+        "deleted": deleted,
+    }
+
+
+def auto_snapshot(*, thread_id: str, modal: ModalGateway, minio: MinioGateway) -> dict:
+    check_thread_id(thread_id)
+    with modal.locked(thread_id):
+        return write_work_snapshot(thread_id=thread_id, modal=modal, minio=minio)
 
 
 def ensure_session(
@@ -227,26 +271,3 @@ def ensure_session(
         "restored_files": len(files),
         "manifest_match": manifest_files is not None,
     }
-
-
-def close_session(
-    *,
-    thread_id: str,
-    user_id: str,
-    session: Session,
-    modal: ModalGateway,
-    minio: MinioGateway,
-) -> dict:
-    check_thread_id(thread_id)
-    check_owner(session, thread_id, user_id, must_exist=True)
-    checkpoint, entries, skipped = _snapshot_to_minio(thread_id=thread_id, modal=modal, minio=minio)
-    _write_manifest(
-        thread_id=thread_id,
-        checkpoint=checkpoint,
-        entries=entries,
-        skipped=skipped,
-        minio=minio,
-        closed=True,
-    )
-    modal.terminate(thread_id)
-    return {"thread_id": thread_id, "checkpoint": checkpoint, "files": len(entries)}

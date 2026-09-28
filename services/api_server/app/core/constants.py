@@ -5,6 +5,9 @@ INPUT_ROOT = "/workspace/input"
 WORK_INDEX_FILE = "index.html"
 WORK_DIST_INDEX = "dist/index.html"
 
+SNAPSHOT_EXCLUDED_TOP = ("dist",)
+SANDBOX_HASH_BATCH_SIZE = 200
+
 GAME_TYPE_SINGLE = "single"
 
 FILE_CHUNK_SIZE = 256 * 1024
